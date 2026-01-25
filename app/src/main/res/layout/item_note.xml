@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <EditText
+            android:id="@+id/text_view_note_content"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:background="@android:color/transparent"
+            android:lineSpacingMultiplier="1.2"
+            android:inputType="textMultiLine|textNoSuggestions"
+            android:padding="16dp"
+            android:textAppearance="?attr/textAppearanceBody2"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/note_divider"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="This is a sample note content that the user has saved.\n\n[Chapter Title, January 1, 2024]" />
+
+        <com.google.android.material.divider.MaterialDivider
+            android:id="@+id/note_divider"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@id/text_view_note_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"/>
+
+        <TextView
+            android:id="@+id/text_view_note_date"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginStart="16dp"
+            android:gravity="center_vertical"
+            android:textAppearance="?attr/textAppearanceCaption"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/button_share_note"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/note_divider"
+            tools:text="Saved on: Jan 1, 2024" />
+
+        <ImageButton
+            android:id="@+id/button_save_note"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Save note"
+            android:src="@drawable/ic_checkmark"
+            android:visibility="gone" 
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/note_divider"
+            app:tint="?attr/colorPrimary"
+            tools:visibility="visible" />
+
+        <ImageButton
+            android:id="@+id/button_edit_note"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Edit note"
+            android:src="@drawable/ic_edit"
+            app:layout_constraintEnd_toStartOf="@id/button_share_note"
+            app:layout_constraintTop_toBottomOf="@id/note_divider"
+            app:tint="?attr/colorPrimary" />
+
+        <ImageButton
+            android:id="@+id/button_share_note"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Share note"
+            android:src="@drawable/ic_share"
+            app:layout_constraintEnd_toStartOf="@id/button_delete_note"
+            app:layout_constraintTop_toBottomOf="@id/note_divider"
+            app:tint="?attr/colorPrimary" />
+
+        <ImageButton
+            android:id="@+id/button_delete_note"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Delete note"
+            android:src="@drawable/ic_delete"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/note_divider"
+            app:tint="?attr/colorError" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</com.google.android.material.card.MaterialCardView>

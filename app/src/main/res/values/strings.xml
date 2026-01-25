@@ -1,0 +1,44 @@
+<resources>
+    <string name="app_name">Kada Chabuk</string>
+    <string name="select_language_prompt">Select Language</string>
+    <string name="chapter_header_image_description">Chapter header image</string>
+    <string name="loading_status_default">Loading Kada Chabuks…</string>
+    <string name="loading_status_downloading">Downloading %s</string>
+
+    <!-- New strings for CSV/language errors -->
+    <string name="error_csv_not_found">Chapter data not available for language: %s</string>
+    <string name="error_language_not_supported">Language not currently supported: %s</string>
+    <string name="theme_toggle_description">Toggle light/dark theme</string>
+    <string name="change_language_description">Change language</string>
+
+
+        <string name="no_chapters_found">No chapters found for the selected language.</string>
+    <string name="error_image_description">An illustration indicating an error has occurred.</string>
+    <string name="retry_button_text">Retry</string>
+    <string name="default_error_message">Something went wrong! Please connect to the internet and try again.</string>
+    <string name="first_time_setup_notice">First-time setup. This may take a minute.</string>
+    <string name="video_thumbnail">Video thumbnail</string>
+    <string name="downloaded_status">Downloaded status</string>
+    <string name="delete_downloaded_data">Delete downloaded data</string>
+    <string name="view_bookmarked_chapters">View Bookmarked Chapters</string>
+
+
+    <string-array name="language_names">
+        <item>বাংলা (Bengali)</item>
+        <item>हिन्दी (Hindi)</item>
+        <item>English</item>
+        <item>অসমীয়া (Assamese)</item>
+        <item>ଓଡିଆ (Odia)</item>
+        <item>தமிழ் (Tamil)</item>
+    </string-array>
+
+    <string-array name="language_codes">
+        <item>bn</item>
+        <item>hi</item>
+        <item>en</item>
+        <item>as</item>
+        <item>od</item>
+        <item>tm</item>
+    </string-array>
+    <string name="search_title">Search</string>
+</resources>

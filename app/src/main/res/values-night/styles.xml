@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Define the Chapter Heading style for Dark Theme -->
+    <style name="ChapterHeading.TextView" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textStyle">normal</item> <!-- Use normal font weight in dark mode -->
+    </style>
+
+    <!-- Define the Chapter Detail Heading style for Dark Theme -->
+    <style name="ChapterDetailHeading.TextView" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:textStyle">normal</item>
+    </style>
+
+    <!-- Define the Chapter Body style for Dark Theme -->
+    <style name="ChapterBody.TextView" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textStyle">normal</item>
+    </style>
+</resources>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/custom_action_menu"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/rounded_corner_background"
+    android:elevation="8dp"
+    android:padding="4dp">
+
+    <ImageButton
+        android:id="@+id/action_copy"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_copy"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Copy" />
+
+    <ImageButton
+        android:id="@+id/action_share_whatsapp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/ic_whatsapp"
+        android:scaleType="fitCenter"
+        android:padding="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Share via WhatsApp" />
+
+    <ImageButton
+        android:id="@+id/action_share_facebook"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_facebook"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Share via Facebook" />
+
+    <ImageButton
+        android:id="@+id/action_keep_notes"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_note"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Keep Notes" />
+
+    <ImageButton
+        android:id="@+id/action_report_error"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_report"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Report an error" />
+
+</LinearLayout>

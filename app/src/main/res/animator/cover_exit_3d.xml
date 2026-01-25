@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:ordering="together">
+
+    <!-- Rotate the cover away on the Y-axis from its left edge -->
+    <objectAnimator
+        android:propertyName="rotationY"
+        android:valueFrom="0"
+        android:valueTo="-90"
+        android:duration="800"
+        android:interpolator="@android:anim/accelerate_interpolator" />
+
+    <!-- Fade the cover out as it turns -->
+    <objectAnimator
+        android:propertyName="alpha"
+        android:valueFrom="1.0"
+        android:valueTo="0.3"
+        android:duration="800" />
+</set>

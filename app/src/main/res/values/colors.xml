@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand & Accent Colors -->
+    <color name="seed">#005B96</color> <!-- Base color for theme generation - a modern, clean blue -->
+
+    <!-- Light Theme Palette -->
+    <color name="light_primary">#005B96</color>
+    <color name="light_onPrimary">#FFFFFF</color>
+    <color name="light_primaryContainer">#D5E3FF</color>
+    <color name="light_onPrimaryContainer">#001C3B</color>
+    <color name="light_secondary">#535F70</color>
+    <color name="light_onSecondary">#FFFFFF</color>
+    <color name="light_secondaryContainer">#D7E3F8</color>
+    <color name="light_onSecondaryContainer">#101C2B</color>
+    <color name="light_surface">#FDFBFF</color>
+    <color name="light_onSurface">#1A1C1E</color>
+    <color name="light_surfaceContainer">#F0F0F0</color> <!-- A neutral light gray for cards -->
+    <color name="light_onSurfaceVariant">#43474E</color>
+    <color name="selectedLineColor">#80D5E3FF</color> <!-- Theme-aligned selection color -->
+    <color name="highlight_color">#80FFEB3B</color> <!-- Semi-transparent yellow for highlighting -->
+    <color name="highlight_color_animated">#CCFFEB3B</color> <!-- Brighter, more opaque yellow for animation -->
+    <color name="flash_color">#994DB6AC</color> <!-- A theme-aware teal for a prominent flash -->
+    <color name="current_match_highlight">#FFC107</color> <!-- A bright yellow/amber for the current match -->
+
+    <!-- Dark Theme Palette -->
+    <color name="dark_primary">#A7C8FF</color>
+    <color name="dark_onPrimary">#002F60</color>
+    <color name="dark_primaryContainer">#004588</color>
+    <color name="dark_onPrimaryContainer">#D5E3FF</color>
+    <color name="dark_secondary">#BCC7DB</color>
+    <color name="dark_onSecondary">#253141</color>
+    <color name="dark_secondaryContainer">#3C4858</color>
+    <color name="dark_onSecondaryContainer">#D7E3F8</color>
+    <color name="dark_surface">#1A1C1E</color>
+    <color name="dark_onSurface">#E3E2E6</color>
+    <color name="dark_surfaceContainer">#1E252E</color> <!-- A slightly lighter dark gray for cards -->
+    <color name="dark_onSurfaceVariant">#C3C7CE</color>
+</resources>

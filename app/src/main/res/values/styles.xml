@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="DialogAnimation">
+        <item name="android:windowEnterAnimation">@android:anim/fade_in</item>
+        <item name="android:windowExitAnimation">@android:anim/fade_out</item>
+    </style>
+
+    <!-- Custom Style for the Text Selection Action Mode Toolbar -->
+    <style name="CustomActionModeStyle" parent="Widget.AppCompat.ActionMode">
+        <!-- This forces the background of the toolbar to be a specific color.
+             Using a color from the theme ensures it fits with the app. -->
+        <item name="background">@color/design_default_color_primary_dark</item>
+    </style>
+
+    <!-- This style will be applied to the app theme to use our custom ActionMode style. -->
+    <style name="AppTheme.ActionMode" parent="Theme.KadaChabuk">
+        <item name="windowActionModeOverlay">true</item>
+        <item name="actionModeStyle">@style/CustomActionModeStyle</item>
+    </style>
+
+    <!-- Define the Chapter Heading style for Light Theme -->
+    <style name="ChapterHeading.TextView" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textStyle">bold</item> <!-- Use bold font weight in light mode -->
+    </style>
+
+    <!-- Define the Chapter Detail Heading style for Light Theme -->
+    <style name="ChapterDetailHeading.TextView" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Define the Chapter Body style for Light Theme -->
+    <style name="ChapterBody.TextView" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textStyle">normal</item>
+    </style>
+</resources>

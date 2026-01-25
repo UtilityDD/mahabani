@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/language_item_background_selector"
+    android:padding="16dp">
+
+    <ImageView
+        android:id="@+id/iv_download_status"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:contentDescription="@string/downloaded_status"
+        android:src="@drawable/ic_checkmark"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="?attr/colorPrimary"
+        tools:visibility="visible" />
+
+    <TextView
+    android:id="@+id/language_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:textAppearance="?attr/textAppearanceTitleMedium"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/button_delete_language"
+        app:layout_constraintStart_toEndOf="@+id/iv_download_status"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="বাংলা (Bengali)" />
+
+    <ImageButton
+        android:id="@+id/button_delete_language"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/delete_downloaded_data"
+        android:src="@drawable/ic_delete_sweep"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="?attr/colorError"
+        tools:visibility="visible" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

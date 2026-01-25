@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- State when the item is selected -->
+    <item android:state_selected="true">
+        <shape android:shape="rectangle">
+            <solid android:color="?attr/colorPrimaryContainer" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+    <!-- Default, unselected state -->
+    <item android:drawable="@android:color/transparent" />
+</selector>

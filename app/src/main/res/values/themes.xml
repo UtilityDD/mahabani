@@ -1,0 +1,54 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme for Light Mode. -->
+    <style name="Base.Theme.KadaChabuk" parent="Theme.Material3.DayNight.NoActionBar">
+
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/light_primary</item>
+        <item name="colorOnPrimary">@color/light_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/light_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/light_onPrimaryContainer</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/light_secondary</item>
+        <item name="colorOnSecondary">@color/light_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/light_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/light_onSecondaryContainer</item>
+        <!-- Surface colors for backgrounds, cards, etc. -->
+        <item name="android:colorBackground">@color/light_surface</item>
+        <item name="colorSurface">@color/light_surface</item>
+        <item name="colorOnSurface">@color/light_onSurface</item>
+        <item name="colorSurfaceContainer">@color/light_surfaceContainer</item>
+        <item name="colorOnSurfaceVariant">@color/light_onSurfaceVariant</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">?attr/colorSurfaceContainerHighest</item>
+
+        <!-- Set the default font for the app -->
+        <item name="android:fontFamily">@font/lato</item>
+
+        <!-- Set default component styles -->
+        <item name="materialCardViewStyle">@style/Widget.App.CardView</item>
+        <item name="materialButtonStyle">@style/Widget.App.Button</item>
+    </style>
+
+    <!-- Shape Appearance for medium components like cards and buttons -->
+    <style name="ShapeAppearance.App.MediumComponent" parent="ShapeAppearance.Material3.MediumComponent">
+        <item name="cornerSize">12dp</item>
+    </style>
+
+    <!-- Card View Style -->
+    <style name="Widget.App.CardView" parent="Widget.Material3.CardView.Elevated">
+        <item name="shapeAppearance">@style/ShapeAppearance.App.MediumComponent</item>
+    </style>
+
+    <!-- Button Style -->
+    <style name="Widget.App.Button" parent="Widget.Material3.Button">
+        <item name="shapeAppearance">@style/ShapeAppearance.App.MediumComponent</item>
+    </style>
+
+    <style name="Theme.KadaChabuk" parent="Base.Theme.KadaChabuk" />
+
+    <style name="App.Widget.SearchView" parent="Widget.AppCompat.SearchView">
+        <item name="android:textColor">?attr/colorOnSurface</item> <!-- Color for the text you type -->
+        <item name="android:textColorHint">?attr/colorOnSurfaceVariant</item> <!-- Color for the "Search..." hint -->
+    </style>
+
+</resources>

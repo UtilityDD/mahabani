@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_search"
+        android:icon="@drawable/ic_search"
+        android:title="@string/search_title"
+        app:actionViewClass="androidx.appcompat.widget.SearchView"
+        app:showAsAction="ifRoom|collapseActionView" />
+
+    <item
+        android:id="@+id/action_theme_toggle"
+        android:icon="@drawable/ic_dark_mode"
+        android:title="Toggle Theme"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_overflow"
+        android:icon="@drawable/ic_more_vert"
+        android:title="More"
+        app:showAsAction="always">
+        <menu>
+            <item
+                android:id="@+id/action_language_change"
+                android:title="Change Language" />
+            <item
+                android:id="@+id/action_reading_history"
+                android:title="Reading History" />
+            <item
+                android:id="@+id/action_my_notes"
+                android:title="My Notes" />
+            <item
+                android:id="@+id/action_videos"
+                android:title="Videos" />
+            <item
+                android:id="@+id/action_about"
+                android:title="About Kada Chabuk" />
+            <item
+                android:id="@+id/action_share_app"
+                android:title="Share App" />
+            <item
+                android:id="@+id/action_credits"
+                android:title="Credits" />
+        </menu>
+    </item>
+</menu>
