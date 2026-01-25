@@ -8,25 +8,6 @@
     android:background="?attr/colorSurfaceContainer"
     tools:context=".CoverActivity">
 
-    <!-- This TextView will display the multilingual text sequence -->
-    <TextView
-        android:id="@+id/title_text_view"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/tiro_bangla_regular"
-        android:gravity="center"
-        android:text="কড়া চাবুক"
-        android:textColor="?attr/colorOnSurface"
-        android:textSize="48sp"
-        android:textStyle="bold"
-        android:visibility="invisible"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.45"
-        tools:visibility="visible" />
-
     <!-- This ImageView will hold your PNG logo -->
     <ImageView
         android:id="@+id/cover_image"
@@ -43,6 +24,91 @@
         app:layout_constraintVertical_bias="0.45"
         tools:visibility="visible" />
 
+    <!-- Bookshelf Container -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/bookshelf_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="invisible"
+        tools:visibility="visible">
+
+        <ImageView
+            android:id="@+id/bookshelf_background"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:src="@drawable/bookshelf_bg"
+            android:alpha="0.3"
+            android:contentDescription="Bookshelf Background" />
+
+        <!-- Dark overlay for blur effect -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#B0000000"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <!-- Search Bar -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/search_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            app:cardBackgroundColor="#44FFFFFF"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="#33FFFFFF"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <androidx.appcompat.widget.SearchView
+                android:id="@+id/bookshelf_search_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:iconifiedByDefault="false"
+                app:queryHint="Search book name..."
+                app:queryBackground="@android:color/transparent"
+                app:searchIcon="@drawable/ic_search"
+                app:closeIcon="@drawable/ic_collapse" />
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Vertical ScrollView for stacked books -->
+        <ScrollView
+            android:id="@+id/books_scroll_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:fillViewport="true"
+            android:scrollbars="none"
+            app:layout_constraintTop_toBottomOf="@id/search_card"
+            app:layout_constraintBottom_toBottomOf="parent">
+
+            <LinearLayout
+                android:id="@+id/shelf_books_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:paddingTop="100dp"
+                android:paddingBottom="100dp"
+                android:paddingStart="40dp"
+                android:paddingEnd="40dp" />
+
+        </ScrollView>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_language"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            android:contentDescription="@string/change_language_description"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:srcCompat="@drawable/ic_language" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
     <TextView
         android:id="@+id/tap_to_open_text"
         android:layout_width="wrap_content"
@@ -54,7 +120,6 @@
         android:visibility="invisible"
         app:layout_constraintTop_toBottomOf="@id/cover_image"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        tools:visibility="visible" />
+        app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Background gradient - Green with gold accents -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:startColor="#4C7F4D"
+                android:centerColor="#2C5F2D"
+                android:endColor="#1C3F1D"
+                android:type="linear"/>
+            <corners android:radius="8dp"/>
+        </shape>
+    </item>
+    
+    <!-- Outer border - Gold -->
+    <item android:top="12dp" android:bottom="12dp" android:left="12dp" android:right="12dp">
+        <shape android:shape="rectangle">
+            <stroke android:width="3dp" android:color="#D4AF37"/>
+            <corners android:radius="6dp"/>
+        </shape>
+    </item>
+    
+    <!-- Inner border -->
+    <item android:top="18dp" android:bottom="18dp" android:left="18dp" android:right="18dp">
+        <shape android:shape="rectangle">
+            <stroke android:width="1dp" android:color="#B8960F"/>
+            <corners android:radius="4dp"/>
+        </shape>
+    </item>
+</layer-list>

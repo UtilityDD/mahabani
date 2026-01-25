@@ -119,9 +119,10 @@ class VideoActivity : AppCompatActivity(), VideoPlaybackListener, OnFavoriteChan
         tabLayout.visibility = View.GONE
         viewPager.visibility = View.GONE
         // The base part of your Google Sheet URL
-        val sheetId = "2PACX-1vRztE9nSnn54KQxwLlLMNgk-v1QjfC-AVy35OyBZPFssRt1zSkgrdX1Xi92oW9i3pkx4HV4AZjclLzF"
+        // Updated to new sheet: 1LCQWFkeaEA6hwGCYM14cVlh1SX0ui5_n5faHf47--tM
+        val sheetId = "1LCQWFkeaEA6hwGCYM14cVlh1SX0ui5_n5faHf47--tM"
         val gid = "113075560" // The GID for your "video" sheet
-        val url = "https://docs.google.com/spreadsheets/d/e/$sheetId/pub?gid=$gid&single=true&output=csv"
+        val url = "https://docs.google.com/spreadsheets/d/$sheetId/export?gid=$gid&single=true&output=csv"
 
         val stringRequest = StringRequest(Request.Method.GET, url,
             { response ->

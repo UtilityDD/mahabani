@@ -21,7 +21,8 @@ data class DownloadProgress(
     val chapter: Chapter)
 
 // Base part of the Google Sheet publish URL (before gid)
-private const val GOOGLE_SHEET_BASE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRztE9nSnn54KQxwLlLMNgk-v1QjfC-AVy35OyBZPFssRt1zSkgrdX1Xi92oW9i3pkx4HV4AZjclLzF/pub"
+// Updated to new sheet: 1LCQWFkeaEA6hwGCYM14cVlh1SX0ui5_n5faHf47--tM
+private const val GOOGLE_SHEET_BASE_URL = "https://docs.google.com/spreadsheets/d/1LCQWFkeaEA6hwGCYM14cVlh1SX0ui5_n5faHf47--tM/export"
 // Suffix part of the Google Sheet publish URL (after gid)
 private const val GOOGLE_SHEET_URL_SUFFIX = "&single=true&output=csv"
 private const val ABOUT_GID = "1925993700"

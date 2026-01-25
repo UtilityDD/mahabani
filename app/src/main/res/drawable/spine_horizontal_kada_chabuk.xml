@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Brown leather background -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#6B4423"/>
+            <corners android:radius="2dp"/>
+        </shape>
+    </item>
+    
+    <!-- Top highlight -->
+    <item android:top="0dp" android:height="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#8B6C47"/>
+        </shape>
+    </item>
+    
+    <!-- Bottom shadow -->
+    <item android:top="78dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#4A3018"/>
+        </shape>
+    </item>
+    
+    <!-- Decorative lines -->
+    <item android:top="10dp" android:height="1dp" android:left="20dp" android:right="20dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#D4AF37"/>
+        </shape>
+    </item>
+    
+    <item android:top="69dp" android:height="1dp" android:left="20dp" android:right="20dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#D4AF37"/>
+        </shape>
+    </item>
+</layer-list>
