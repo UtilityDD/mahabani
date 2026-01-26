@@ -56,7 +56,7 @@ class CoverActivity : AppCompatActivity() {
     private var fetchedBooks: List<LibraryBook> = emptyList()
 
     private val bookAssetsMap = mapOf(
-        "kada_chabuk" to Pair(R.drawable.spine_horizontal_kada_chabuk, R.drawable.cover_kada_chabuk),
+        "kada_chabuk" to Pair(R.drawable.spine_horizontal_the_echo, R.drawable.cover_kada_chabuk),
         "shaishab_kahini" to Pair(R.drawable.spine_horizontal_the_echo, R.drawable.cover_the_echo),
         "silent_hill" to Pair(R.drawable.spine_horizontal_silent_hill, R.drawable.cover_silent_hill),
         "lost_city" to Pair(R.drawable.spine_horizontal_lost_city, R.drawable.cover_lost_city),
@@ -90,8 +90,18 @@ class CoverActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.fab_language).setOnClickListener {
+        val fabLanguage = findViewById<com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton>(R.id.fab_language)
+        fabLanguage.setOnClickListener {
             showLanguageSelectionDialog(isCancelable = true)
+        }
+        
+        val scrollView = findViewById<android.widget.ScrollView>(R.id.books_scroll_view)
+        scrollView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+            if (scrollY > oldScrollY) {
+                fabLanguage.shrink()
+            } else {
+                fabLanguage.extend()
+            }
         }
         
         setupSearch()
@@ -319,14 +329,11 @@ class CoverActivity : AppCompatActivity() {
         textView.ellipsize = android.text.TextUtils.TruncateAt.END
         labelContainer.addView(textView)
 
-        // Subtitle / Year
+        // Subtitle (Year removed from here)
         val subText = book.getLocalizedSubName(lang)
-        val yearText = book.getLocalizedYear(lang)
-        val subtitleContent = if (subText.isNotEmpty() && yearText.isNotEmpty()) "$subText ($yearText)" else "$subText$yearText"
-        
-        if (subtitleContent.isNotEmpty()) {
+        if (subText.isNotEmpty()) {
             val subTextView = TextView(this)
-            subTextView.text = subtitleContent
+            subTextView.text = subText
             subTextView.setTextColor(android.graphics.Color.parseColor("#B0A080")) // Muted gold
             subTextView.textSize = 11f
             subTextView.typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.ITALIC)
@@ -334,6 +341,30 @@ class CoverActivity : AppCompatActivity() {
         }
         
         cardView.addView(labelContainer)
+
+        // Vertical Year at the end of spine
+        val yearString = book.getLocalizedYear(lang)
+        if (yearString.isNotEmpty()) {
+            val yearSpineText = TextView(this)
+            // Vertical arrangement: join characters with newlines
+            yearSpineText.text = yearString.toCharArray().joinToString("\n")
+            
+            val yearParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+            yearParams.gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+            yearParams.marginEnd = dpToPx(16f)
+            yearSpineText.layoutParams = yearParams
+            
+            yearSpineText.setTextColor(android.graphics.Color.parseColor("#C0B090"))
+            yearSpineText.textSize = 10f
+            yearSpineText.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            yearSpineText.gravity = android.view.Gravity.CENTER_HORIZONTAL
+            yearSpineText.setLineSpacing(0f, 0.85f) // Tighter spacing for vertical stack
+            
+            cardView.addView(yearSpineText)
+        }
 
         cardView.setOnClickListener {
             handleBookClick(imageView, cardView, book, lang, coverRes)
@@ -381,36 +412,56 @@ class CoverActivity : AppCompatActivity() {
         
         bookContainer.addView(coverImage)
         
-        // Add title text ON the cover (centered vertically)
-        val titleText = TextView(this)
-        val titleParams = android.widget.FrameLayout.LayoutParams(
+        // Container for Title and Year to ensure they are stacked and centered together
+        val textContainer = android.widget.LinearLayout(this)
+        textContainer.orientation = android.widget.LinearLayout.VERTICAL
+        textContainer.gravity = android.view.Gravity.CENTER
+        val textContainerParams = android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
             android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
         )
-        titleParams.gravity = android.view.Gravity.CENTER
-        titleText.layoutParams = titleParams
-        
-        // Localize the title 
+        textContainerParams.gravity = android.view.Gravity.CENTER
+        textContainer.layoutParams = textContainerParams
+        textContainer.translationZ = dpToPx(20f).toFloat()
+        textContainer.elevation = dpToPx(15f).toFloat()
+
+        // Add title text
+        val titleText = TextView(this)
+        titleText.layoutParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
         val displayTitle = book.getLocalizedName(lang)
         titleText.text = displayTitle
-        
         titleText.textSize = 32f
-        titleText.setTextColor(
-            if (book.bookId == "kada_chabuk") 
-                android.graphics.Color.parseColor("#FFD700") // Gold for Kada Chabuk
-            else 
-                android.graphics.Color.parseColor("#F5F5DC") // Beige/cream for others
-        )
+        titleText.setTextColor(android.graphics.Color.parseColor("#F5F5DC")) // Beige/cream
         titleText.typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD)
         titleText.setShadowLayer(8f, 0f, 4f, android.graphics.Color.BLACK)
         titleText.gravity = android.view.Gravity.CENTER
         titleText.maxWidth = dpToPx(240f)
+        textContainer.addView(titleText)
+
+        // Add year text gently below
+        val yearText = TextView(this)
+        val yearParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        yearParams.topMargin = dpToPx(8f)
+        yearText.layoutParams = yearParams
         
-        // CRITICAL: Ensure title is ABOVE the cover by setting higher translationZ/elevation
-        titleText.translationZ = dpToPx(20f).toFloat() 
-        titleText.elevation = dpToPx(15f).toFloat()
-        
-        bookContainer.addView(titleText)
+        val displayYear = book.getLocalizedYear(lang)
+        if (displayYear.isNotEmpty()) {
+            yearText.text = displayYear
+            yearText.textSize = 16f
+            yearText.setTextColor(android.graphics.Color.parseColor("#D0C0A0")) // Slightly darker/gold-ish beige
+            yearText.typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.ITALIC)
+            yearText.setShadowLayer(4f, 0f, 2f, android.graphics.Color.BLACK)
+            yearText.gravity = android.view.Gravity.CENTER
+            textContainer.addView(yearText)
+        }
+
+        bookContainer.addView(textContainer)
         overlay.addView(bookContainer)
         
         // Add to root view
@@ -543,7 +594,7 @@ class CoverActivity : AppCompatActivity() {
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(R.layout.dialog_language_selector)
-        dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.window?.setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         dialog.window?.attributes?.windowAnimations = R.style.DialogAnimation
         dialog.setCancelable(isCancelable)

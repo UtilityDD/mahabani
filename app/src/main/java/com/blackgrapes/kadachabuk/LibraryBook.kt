@@ -62,7 +62,7 @@ data class LibraryBook(
             "bn" -> bnSubName
             "hi" -> hiSubName
             "en" -> enSubName
-            "as" -> asName // Use name as fallback for missing subname to avoid empty string on spine
+            "as" -> asSubName
             "od" -> odSubName
             "tm" -> tmSubName
             else -> enSubName

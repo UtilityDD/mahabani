@@ -97,15 +97,21 @@
 
         </ScrollView>
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
+        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
             android:id="@+id/fab_language"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:contentDescription="@string/change_language_description"
+            android:layout_margin="24dp"
+            android:text="Language"
+            android:textColor="?attr/colorOnSurface"
+            app:icon="@drawable/ic_language"
+            app:iconTint="?attr/colorOnSurface"
+            app:backgroundTint="?attr/colorSurfaceContainerHigh"
+            app:elevation="6dp"
+            app:contentPaddingStart="16dp"
+            app:contentPaddingEnd="20dp"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:srcCompat="@drawable/ic_language" />
+            app:layout_constraintEnd_toEndOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

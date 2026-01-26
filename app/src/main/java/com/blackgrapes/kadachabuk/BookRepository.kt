@@ -284,50 +284,65 @@ class BookRepository(private val context: Context) {
 
         Log.d("BookRepository", "Downloading CSV for $languageCode from: $downloadUrl to a temporary file.")
         val tempFile = getTemporaryCsvFile(languageCode)
-        var connection: HttpURLConnection? = null
+        
+        val maxRetries = 3
+        var currentAttempt = 0
+        var lastException: Exception? = null
 
-        try {
-            connection = downloadUrl.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
-            connection.instanceFollowRedirects = true
-            connection.connect()
+        while (currentAttempt < maxRetries) {
+            currentAttempt++
+            var connection: HttpURLConnection? = null
+            try {
+                if (currentAttempt > 1) {
+                    val backoff = 2000L
+                    Log.d("BookRepository", "Retry attempt $currentAttempt for download in ${backoff}ms...")
+                    kotlinx.coroutines.delay(backoff)
+                }
 
-            val responseCode = connection.responseCode
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                var totalBytesRead = 0L
-                connection.inputStream.use { input ->
-                    FileOutputStream(tempFile).use { output ->
-                        val buffer = ByteArray(8 * 1024)
-                        var bytesRead: Int
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            output.write(buffer, 0, bytesRead)
-                            totalBytesRead += bytesRead
+                connection = downloadUrl.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.instanceFollowRedirects = true
+                connection.connect()
+
+                val responseCode = connection.responseCode
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    var totalBytesRead = 0L
+                    connection.inputStream.use { input ->
+                        FileOutputStream(tempFile).use { output ->
+                            val buffer = ByteArray(8 * 1024)
+                            var bytesRead: Int
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                output.write(buffer, 0, bytesRead)
+                                totalBytesRead += bytesRead
+                            }
+                            output.flush()
                         }
-                        output.flush()
                     }
-                }
-                if (totalBytesRead > 0) {
-                    Log.i("BookRepository", "CSV downloaded ($totalBytesRead bytes) to temp file: ${tempFile.absolutePath}")
-                    return Result.success(tempFile)
+                    if (totalBytesRead > 0) {
+                        Log.i("BookRepository", "CSV downloaded ($totalBytesRead bytes) to temp file: ${tempFile.absolutePath} (Attempt $currentAttempt)")
+                        return Result.success(tempFile)
+                    } else {
+                        Log.w("BookRepository", "Downloaded CSV for $languageCode was empty (Attempt $currentAttempt).")
+                        // Treat empty file as a failure to trigger retry
+                        throw Exception("Downloaded CSV for $languageCode was empty.")
+                    }
                 } else {
-                    Log.w("BookRepository", "Downloaded CSV for $languageCode was empty.")
-                    tempFile.delete()
-                    return Result.failure(Exception("Downloaded CSV for $languageCode was empty."))
+                    Log.e("BookRepository", "Download failed: $responseCode ${connection.responseMessage} (Attempt $currentAttempt)")
+                    throw Exception("Download failed: $responseCode ${connection.responseMessage}")
                 }
-            } else {
-                Log.e("BookRepository", "Download failed: $responseCode ${connection.responseMessage}")
-                if(tempFile.exists()) tempFile.delete()
-                return Result.failure(Exception("Download failed: $responseCode ${connection.responseMessage}"))
+            } catch (e: Exception) {
+                Log.e("BookRepository", "Exception during CSV download attempt $currentAttempt", e)
+                lastException = e
+            } finally {
+                connection?.disconnect()
             }
-        } catch (e: Exception) {
-            Log.e("BookRepository", "Exception during CSV download to temp file", e)
-            if(tempFile.exists()) tempFile.delete()
-            return Result.failure(e)
-        } finally {
-            connection?.disconnect()
         }
+        
+        // If we exhausted all retries
+        if (tempFile.exists()) tempFile.delete()
+        return Result.failure(lastException ?: Exception("Unknown download failure after $maxRetries attempts"))
     }
 
     /**
