@@ -50,5 +50,9 @@ data class Chapter(
     /**
      * The version of this chapter's content.
      */
-    val version: String
+    val version: String,
+    /**
+     * Tracking if the chapter has been read by the user.
+     */
+    val isRead: Boolean = false
 ) : Parcelable

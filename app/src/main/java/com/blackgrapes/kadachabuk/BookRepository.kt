@@ -571,6 +571,21 @@ class BookRepository(private val context: Context) {
         }
     }
 
+    suspend fun markChapterAsRead(languageCode: String, bookId: String, serial: String) {
+        withContext(Dispatchers.IO) {
+            chapterDao.updateReadStatus(languageCode, bookId, serial, true)
+        }
+    }
+
+    suspend fun getBookProgress(languageCode: String, bookId: String): Int {
+        return withContext(Dispatchers.IO) {
+            val total = chapterDao.getChapterCount(languageCode, bookId)
+            if (total == 0) return@withContext 0
+            val read = chapterDao.getReadChaptersCount(languageCode, bookId)
+            (read * 100) / total
+        }
+    }
+
     /**
      * Fetches the dynamic library metadata from the remote spreadsheet.
      */
@@ -586,7 +601,7 @@ class BookRepository(private val context: Context) {
                 connection.connect()
 
                 if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                    val books = parseLibraryCsv(connection.inputStream)
+                    val books = parseLibraryCsv(connection.inputStream).sortedBy { it.sl }
                     libraryBookDao.upsertBooks(books)
                     Result.success(books)
                 } else {

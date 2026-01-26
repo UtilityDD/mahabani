@@ -9,7 +9,7 @@ interface LibraryBookDao {
     @Upsert
     suspend fun upsertBooks(books: List<LibraryBook>)
 
-    @Query("SELECT * FROM library_books")
+    @Query("SELECT * FROM library_books ORDER BY sl ASC")
     suspend fun getAllBooks(): List<LibraryBook>
 
     @Query("SELECT * FROM library_books WHERE bookId = :bookId LIMIT 1")

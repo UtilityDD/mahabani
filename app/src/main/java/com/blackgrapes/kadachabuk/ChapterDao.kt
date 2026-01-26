@@ -29,6 +29,12 @@ interface ChapterDao {
     @Query("SELECT DISTINCT languageCode FROM chapters WHERE bookId = :bookId")
     suspend fun getDownloadedLanguageCodes(bookId: String): List<String>
 
+    @Query("UPDATE chapters SET isRead = :isRead WHERE languageCode = :languageCode AND bookId = :bookId AND serial = :serial")
+    suspend fun updateReadStatus(languageCode: String, bookId: String, serial: String, isRead: Boolean)
+
+    @Query("SELECT COUNT(*) FROM chapters WHERE languageCode = :languageCode AND bookId = :bookId AND isRead = 1")
+    suspend fun getReadChaptersCount(languageCode: String, bookId: String): Int
+
     @Transaction
     suspend fun replaceChapters(languageCode: String, bookId: String, newChapters: List<Chapter>) {
         deleteChaptersByLanguageAndBook(languageCode, bookId)

@@ -151,6 +151,14 @@ class DetailActivity : AppCompatActivity() {
         languageCode = intent.getStringExtra("EXTRA_LANGUAGE_CODE") ?: ""
         bookId = intent.getStringExtra("EXTRA_BOOK_ID") ?: "kada_chabuk"
 
+        // Update read status in background
+        if (chapterSerial.isNotEmpty() && languageCode.isNotEmpty()) {
+            val repository = BookRepository(this)
+            CoroutineScope(Dispatchers.IO).launch {
+                repository.markChapterAsRead(languageCode, bookId, chapterSerial)
+            }
+        }
+
         textViewHeading.text = chapterHeading
         val formattedDate = chapterDate?.removeSurrounding("(", ")") ?: ""
         textViewDate.text = if (formattedDate.trim().equals("N/A", ignoreCase = true)) "" else formattedDate

@@ -18,6 +18,7 @@ import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
@@ -49,6 +50,7 @@ class CoverActivity : AppCompatActivity() {
 
     private val animationScope = CoroutineScope(Dispatchers.Main)
     private var animationJob: Job? = null
+    private var populationJob: Job? = null
     private var isAnimationSkippable = true
 
     private lateinit var shelfBooksContainer: android.widget.LinearLayout
@@ -110,9 +112,15 @@ class CoverActivity : AppCompatActivity() {
 
     private fun observeViewModel() {
         bookViewModel.libraryBooks.observe(this) { books ->
+            val isFirstLoad = fetchedBooks.isEmpty()
+            val hasDataChanged = fetchedBooks != books
+            
             fetchedBooks = books
+            
             if (bookshelfContainer.visibility == View.VISIBLE) {
-                refreshShelf(currentBookshelfLanguage ?: "bn")
+                if (isFirstLoad || hasDataChanged) {
+                    refreshShelf(currentBookshelfLanguage ?: "bn")
+                }
             }
         }
     }
@@ -164,7 +172,6 @@ class CoverActivity : AppCompatActivity() {
     }
     
     private fun filterBooks(query: String) {
-        shelfBooksContainer.removeAllViews()
         val lang = currentBookshelfLanguage ?: "bn"
         val filteredList = if (query.isEmpty()) {
             fetchedBooks
@@ -176,9 +183,14 @@ class CoverActivity : AppCompatActivity() {
             }
         }
         
-        for (book in filteredList) {
-            val bookView = createBookView(book, lang)
-            shelfBooksContainer.addView(bookView)
+        populationJob?.cancel()
+        populationJob = lifecycleScope.launch {
+            shelfBooksContainer.removeAllViews()
+            for (book in filteredList.sortedBy { it.sl }) {
+                val progress = bookViewModel.getBookProgress(lang, book.bookId)
+                val bookView = createBookView(book, lang, progress)
+                shelfBooksContainer.addView(bookView)
+            }
         }
     }
 
@@ -188,8 +200,8 @@ class CoverActivity : AppCompatActivity() {
         val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
         val selectedLang = sharedPreferences.getString("selected_language_code", null)
         
-        if (selectedLang != null && selectedLang != currentBookshelfLanguage) {
-            // Only refresh if we've already populated once (to avoid interfering with initial animation)
+        if (selectedLang != null) {
+            // Always refresh if we've already populated once to update progress bars
             if (bookshelfContainer.visibility == View.VISIBLE) {
                 refreshShelf(selectedLang)
             }
@@ -198,8 +210,11 @@ class CoverActivity : AppCompatActivity() {
 
     private fun refreshShelf(newLang: String) {
         currentBookshelfLanguage = newLang
-        shelfBooksContainer.removeAllViews()
-        populateBookshelf()
+        populationJob?.cancel()
+        populationJob = animationScope.launch { 
+            shelfBooksContainer.removeAllViews()
+            populateBookshelf() 
+        }
     }
 
     private fun startAnimationSequence() {
@@ -218,7 +233,9 @@ class CoverActivity : AppCompatActivity() {
             bookshelfContainer.animate().alpha(1f).setDuration(800).start()
             
             // Populate books while shelf fades in
-            populateBookshelf()
+            populationJob?.cancel()
+            populationJob = animationScope.launch { populateBookshelf() }
+            populationJob?.join() // Wait for population to finish before staggering
             
             // Animate books entry (staggered)
             for (i in 0 until shelfBooksContainer.childCount) {
@@ -228,7 +245,7 @@ class CoverActivity : AppCompatActivity() {
                 book.animate()
                     .alpha(1f)
                     .translationY(0f)
-                    .setStartDelay(i * 100L + 400)
+                    .setStartDelay(i * 100L) // Removed large 400ms delay since we wait for population now
                     .setDuration(400)
                     .setInterpolator(AccelerateDecelerateInterpolator())
                     .start()
@@ -243,22 +260,27 @@ class CoverActivity : AppCompatActivity() {
     private enum class BookState { SPINE, COVER }
     private val bookStates = mutableMapOf<String, BookState>()
 
-    private fun populateBookshelf() {
+    private suspend fun populateBookshelf() {
         // Track the language used for this population
         val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
         val lang = sharedPreferences.getString("selected_language_code", "bn") ?: "bn"
         currentBookshelfLanguage = lang
 
-        // Initialize all as showing spine
-        fetchedBooks.forEach { bookStates[it.bookId] = BookState.SPINE }
+        val sortedBooks = fetchedBooks.sortedBy { it.sl }
 
-        for (book in fetchedBooks) {
-            val bookView = createBookView(book, lang)
+        for (book in sortedBooks) {
+            // Initialize state
+            bookStates[book.bookId] = BookState.SPINE
+            
+            // Fetch progress
+            val progress = bookViewModel.getBookProgress(lang, book.bookId)
+            
+            val bookView = createBookView(book, lang, progress)
             shelfBooksContainer.addView(bookView)
         }
     }
 
-    private fun createBookView(book: LibraryBook, lang: String): View {
+    private fun createBookView(book: LibraryBook, lang: String, progress: Int = 0): View {
         val (spineRes, coverRes) = bookAssetsMap[book.bookId] ?: Pair(R.drawable.spine_horizontal_the_echo, R.drawable.cover_the_echo)
         
         // Container for the book with shadow
@@ -364,6 +386,35 @@ class CoverActivity : AppCompatActivity() {
             yearSpineText.setLineSpacing(0f, 0.85f) // Tighter spacing for vertical stack
             
             cardView.addView(yearSpineText)
+        }
+
+        // Add reading progress line at the bottom
+        if (progress > 0) {
+            val progressContainer = android.widget.LinearLayout(this)
+            val containerParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                dpToPx(3f)
+            )
+            containerParams.gravity = android.view.Gravity.BOTTOM
+            containerParams.setMargins(dpToPx(16f), 0, dpToPx(16f), dpToPx(8f))
+            progressContainer.layoutParams = containerParams
+            progressContainer.orientation = android.widget.LinearLayout.HORIZONTAL
+            progressContainer.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#33000000"))
+            
+            // The colored progress part
+            val bar = android.view.View(this)
+            val barParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.MATCH_PARENT, progress.toFloat())
+            bar.layoutParams = barParams
+            bar.setBackgroundColor(android.graphics.Color.parseColor("#E0C090")) // Gold
+            
+            // The remaining part of the track
+            val remainder = android.view.View(this)
+            val remainderParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.MATCH_PARENT, (100 - progress).toFloat())
+            remainder.layoutParams = remainderParams
+            
+            progressContainer.addView(bar)
+            progressContainer.addView(remainder)
+            cardView.addView(progressContainer)
         }
 
         cardView.setOnClickListener {

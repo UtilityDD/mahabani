@@ -171,6 +171,16 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
         return repository.getDownloadedLanguageCodes(bookId)
     }
 
+    fun markChapterAsRead(chapter: Chapter) {
+        viewModelScope.launch {
+            repository.markChapterAsRead(chapter.languageCode, chapter.bookId, chapter.serial)
+        }
+    }
+
+    suspend fun getBookProgress(languageCode: String, bookId: String = currentBookId): Int {
+        return repository.getBookProgress(languageCode, bookId)
+    }
+
     fun deleteChaptersForLanguage(languageCode: String, bookId: String = currentBookId) {
         viewModelScope.launch {
             repository.deleteChaptersForLanguage(bookId, languageCode)
