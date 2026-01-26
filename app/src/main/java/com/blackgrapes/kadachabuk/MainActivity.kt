@@ -85,6 +85,12 @@ private const val LAST_READ_PREFS = "LastReadPrefs"
 private const val KEY_LAST_READ_SERIAL = "lastReadSerial"
 private const val KEY_LAST_READ_LANG = "lastReadLang"
 
+private const val READER_THEME_PREFS = "ReaderThemePrefs"
+private const val KEY_READER_THEME = "readerTheme"
+private const val THEME_SYSTEM = "system"
+private const val THEME_SEPIA = "sepia"
+private const val THEME_MIDNIGHT = "midnight"
+
 class MainActivity : AppCompatActivity() {
 
     private val bookViewModel: BookViewModel by viewModels()
@@ -147,7 +153,7 @@ class MainActivity : AppCompatActivity() {
         currentBookId = intent.getStringExtra("selected_book_id") ?: "kada_chabuk"
         bookViewModel.currentBookId = currentBookId
 
-        applySavedTheme()
+        // applySavedTheme() removed - handled by applyReaderTheme
         setContentView(R.layout.activity_main)
 
         // Allow the app to draw behind the system bars for a seamless UI
@@ -211,6 +217,7 @@ class MainActivity : AppCompatActivity() {
         // Initialize and check for app updates
         appUpdateManager = AppUpdateManagerFactory.create(this)
         checkForAppUpdate()
+        applyReaderTheme()
     }
 
     override fun onResume() {
@@ -516,11 +523,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun applySavedTheme() {
-        val sharedPreferences = getSharedPreferences("ThemePrefs", Context.MODE_PRIVATE)
-        val nightMode = sharedPreferences.getInt("NightMode", AppCompatDelegate.MODE_NIGHT_NO)
-        AppCompatDelegate.setDefaultNightMode(nightMode)
-    }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
@@ -559,7 +561,7 @@ class MainActivity : AppCompatActivity() {
         // Add a badge to the "Credits" menu item to draw attention
         addBadgeToCreditsMenuItem()
 
-        updateThemeIcon(menu.findItem(R.id.action_theme_toggle))
+        // Theme icon is set in main_menu.xml
         return true
     }
 
@@ -801,14 +803,7 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.action_theme_toggle -> {
-                val currentNightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                val newNightMode = if (currentNightMode == Configuration.UI_MODE_NIGHT_YES) {
-                    AppCompatDelegate.MODE_NIGHT_NO
-                } else {
-                    AppCompatDelegate.MODE_NIGHT_YES
-                }
-                AppCompatDelegate.setDefaultNightMode(newNightMode)
-                getSharedPreferences("ThemePrefs", Context.MODE_PRIVATE).edit().putInt("NightMode", newNightMode).apply()
+                showReaderThemeDialog()
                 return true
             }
             R.id.action_language_change -> {
@@ -950,14 +945,6 @@ class MainActivity : AppCompatActivity() {
         chapterAdapter.updateChapters(pristineOriginalChapters, null)
     }
 
-    private fun updateThemeIcon(themeMenuItem: MenuItem) {
-        val currentNightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        if (currentNightMode == Configuration.UI_MODE_NIGHT_YES) {
-            themeMenuItem.setIcon(R.drawable.ic_light_mode)
-        } else {
-            themeMenuItem.setIcon(R.drawable.ic_dark_mode)
-        }
-    }
     
     private fun shareApp() {
         val appPackageName = packageName // Get the package name of your app
@@ -1308,6 +1295,84 @@ class MainActivity : AppCompatActivity() {
         }
 
         dialog.show()
+    }
+
+    private fun showReaderThemeDialog() {
+        val dialog = Dialog(this)
+        dialog.setContentView(R.layout.dialog_reading_theme)
+        dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.let { WindowUtils.setStatusBarIconColor(it) }
+
+        // Theme selection
+        val themeSystem = dialog.findViewById<View>(R.id.theme_system)
+        val themeSepia = dialog.findViewById<View>(R.id.theme_sepia)
+        val themeMidnight = dialog.findViewById<View>(R.id.theme_midnight)
+        
+        val prefs = getSharedPreferences(READER_THEME_PREFS, Context.MODE_PRIVATE)
+        val currentTheme = prefs.getString(KEY_READER_THEME, THEME_SEPIA) ?: THEME_SEPIA
+        
+        themeSystem.isSelected = currentTheme == THEME_SYSTEM
+        themeSepia.isSelected = currentTheme == THEME_SEPIA
+        themeMidnight.isSelected = currentTheme == THEME_MIDNIGHT
+        
+        themeSystem.setOnClickListener {
+            themeSystem.isSelected = true
+            themeSepia.isSelected = false
+            themeMidnight.isSelected = false
+            prefs.edit().putString(KEY_READER_THEME, THEME_SYSTEM).apply()
+            applyReaderTheme()
+        }
+        
+        themeSepia.setOnClickListener {
+            themeSystem.isSelected = false
+            themeSepia.isSelected = true
+            themeMidnight.isSelected = false
+            prefs.edit().putString(KEY_READER_THEME, THEME_SEPIA).apply()
+            applyReaderTheme()
+        }
+        
+        themeMidnight.setOnClickListener {
+            themeSystem.isSelected = false
+            themeSepia.isSelected = false
+            themeMidnight.isSelected = true
+            prefs.edit().putString(KEY_READER_THEME, THEME_MIDNIGHT).apply()
+            applyReaderTheme()
+        }
+
+        dialog.show()
+    }
+
+    private fun applyReaderTheme() {
+        val prefs = getSharedPreferences(READER_THEME_PREFS, Context.MODE_PRIVATE)
+        val themeStr = prefs.getString(KEY_READER_THEME, THEME_SEPIA) ?: THEME_SEPIA
+        
+        // Sync system mode for app-wide consistency
+        val targetMode = when (themeStr) {
+            THEME_MIDNIGHT -> AppCompatDelegate.MODE_NIGHT_YES
+            THEME_SEPIA -> AppCompatDelegate.MODE_NIGHT_NO
+            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+        
+        if (AppCompatDelegate.getDefaultNightMode() != targetMode) {
+            AppCompatDelegate.setDefaultNightMode(targetMode)
+        }
+
+        val mainLayout = findViewById<View>(R.id.main) ?: return
+        
+        when (themeStr) {
+            THEME_SEPIA -> {
+                mainLayout.setBackgroundColor(ContextCompat.getColor(this, R.color.reader_sepia_bg))
+            }
+            THEME_MIDNIGHT -> {
+                mainLayout.setBackgroundColor(ContextCompat.getColor(this, R.color.reader_midnight_bg))
+            }
+            else -> {
+                val typedValue = TypedValue()
+                this.theme.resolveAttribute(android.R.attr.colorBackground, typedValue, true)
+                mainLayout.setBackgroundColor(typedValue.data)
+            }
+        }
     }
 
     /**

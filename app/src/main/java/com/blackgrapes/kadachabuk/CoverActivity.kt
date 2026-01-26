@@ -40,6 +40,12 @@ import android.content.DialogInterface
 import android.text.TextUtils
 import com.blackgrapes.kadachabuk.WindowUtils
 
+private const val READER_THEME_PREFS = "ReaderThemePrefs"
+private const val KEY_READER_THEME = "readerTheme"
+private const val THEME_SYSTEM = "system"
+private const val THEME_SEPIA = "sepia"
+private const val THEME_MIDNIGHT = "midnight"
+
 class CoverActivity : AppCompatActivity() {
 
     private val bookViewModel: BookViewModel by viewModels()
@@ -706,9 +712,18 @@ class CoverActivity : AppCompatActivity() {
     }
 
     private fun applySavedTheme() {
-        val sharedPreferences = getSharedPreferences("ThemePrefs", Context.MODE_PRIVATE)
-        val nightMode = sharedPreferences.getInt("NightMode", AppCompatDelegate.MODE_NIGHT_NO)
-        AppCompatDelegate.setDefaultNightMode(nightMode)
+        val prefs = getSharedPreferences(READER_THEME_PREFS, Context.MODE_PRIVATE)
+        val themeStr = prefs.getString(KEY_READER_THEME, THEME_SEPIA) ?: THEME_SEPIA
+        
+        val targetMode = when (themeStr) {
+            THEME_MIDNIGHT -> AppCompatDelegate.MODE_NIGHT_YES
+            THEME_SEPIA -> AppCompatDelegate.MODE_NIGHT_NO
+            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+        
+        if (AppCompatDelegate.getDefaultNightMode() != targetMode) {
+            AppCompatDelegate.setDefaultNightMode(targetMode)
+        }
     }
 
     override fun onDestroy() {

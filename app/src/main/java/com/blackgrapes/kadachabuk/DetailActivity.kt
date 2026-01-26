@@ -28,6 +28,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.SpannableString
@@ -60,6 +61,11 @@ private const val FONT_PREFS = "FontPrefs"
 private const val KEY_FONT_SIZE = "fontSize"
 private const val DEFAULT_FONT_SIZE = 18f
 private const val BOOKMARK_PREFS = "BookmarkPrefs"
+private const val READER_THEME_PREFS = "ReaderThemePrefs"
+private const val KEY_READER_THEME = "readerTheme"
+private const val THEME_SYSTEM = "system"
+private const val THEME_SEPIA = "sepia"
+private const val THEME_MIDNIGHT = "midnight"
 private const val SCROLL_PREFS = "ScrollPositions"
 private const val NOTES_PREFS = "MyNotesPrefs"
 private const val HISTORY_PREFS = "ReadingHistoryPrefs"
@@ -227,6 +233,7 @@ class DetailActivity : AppCompatActivity() {
         title = chapterHeading ?: "Details"
 
         loadAndApplyFontSize()
+        applyReaderTheme()
         textViewWriter.text = writer
         setupFontSettingsButton()
         setupBookmarkButton()
@@ -825,13 +832,59 @@ class DetailActivity : AppCompatActivity() {
         dialog.setContentView(R.layout.dialog_font_settings)
         dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        // Use the centralized utility to set the status bar icon color for the dialog.
         dialog.window?.let { WindowUtils.setStatusBarIconColor(it) }
+        
         val slider = dialog.findViewById<Slider>(R.id.font_size_slider)
         slider.value = textViewData.textSize / resources.displayMetrics.scaledDensity
 
         slider.addOnChangeListener { _, value, _ ->
             textViewData.textSize = value
+        }
+
+        // Theme selection
+        val themeSystem = dialog.findViewById<View>(R.id.theme_system)
+        val themeSepia = dialog.findViewById<View>(R.id.theme_sepia)
+        val themeMidnight = dialog.findViewById<View>(R.id.theme_midnight)
+        
+        val prefs = getSharedPreferences(READER_THEME_PREFS, Context.MODE_PRIVATE)
+        val currentTheme = prefs.getString(KEY_READER_THEME, THEME_SEPIA) ?: THEME_SEPIA
+        
+        // Set initial selected state
+        themeSystem.isSelected = currentTheme == THEME_SYSTEM
+        themeSepia.isSelected = currentTheme == THEME_SEPIA
+        themeMidnight.isSelected = currentTheme == THEME_MIDNIGHT
+        
+        themeSystem.setOnClickListener {
+            themeSystem.isSelected = true
+            themeSepia.isSelected = false
+            themeMidnight.isSelected = false
+            with(prefs.edit()) {
+                putString(KEY_READER_THEME, THEME_SYSTEM)
+                apply()
+            }
+            applyReaderTheme()
+        }
+        
+        themeSepia.setOnClickListener {
+            themeSystem.isSelected = false
+            themeSepia.isSelected = true
+            themeMidnight.isSelected = false
+            with(prefs.edit()) {
+                putString(KEY_READER_THEME, THEME_SEPIA)
+                apply()
+            }
+            applyReaderTheme()
+        }
+        
+        themeMidnight.setOnClickListener {
+            themeSystem.isSelected = false
+            themeSepia.isSelected = false
+            themeMidnight.isSelected = true
+            with(prefs.edit()) {
+                putString(KEY_READER_THEME, THEME_MIDNIGHT)
+                apply()
+            }
+            applyReaderTheme()
         }
 
         dialog.setOnDismissListener {
@@ -853,6 +906,54 @@ class DetailActivity : AppCompatActivity() {
         val sharedPreferences = getSharedPreferences(FONT_PREFS, Context.MODE_PRIVATE)
         val fontSize = sharedPreferences.getFloat(KEY_FONT_SIZE, DEFAULT_FONT_SIZE)
         textViewData.textSize = fontSize
+    }
+
+    private fun applyReaderTheme() {
+        val prefs = getSharedPreferences(READER_THEME_PREFS, Context.MODE_PRIVATE)
+        val themeStr = prefs.getString(KEY_READER_THEME, THEME_SEPIA) ?: THEME_SEPIA
+        
+        // Sync system mode for app-wide consistency
+        val targetMode = when (themeStr) {
+            THEME_MIDNIGHT -> AppCompatDelegate.MODE_NIGHT_YES
+            THEME_SEPIA -> AppCompatDelegate.MODE_NIGHT_NO
+            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+        
+        if (AppCompatDelegate.getDefaultNightMode() != targetMode) {
+            AppCompatDelegate.setDefaultNightMode(targetMode)
+        }
+        
+        when (themeStr) {
+            THEME_SEPIA -> {
+                scrollView.setBackgroundColor(ContextCompat.getColor(this, R.color.reader_sepia_bg))
+                textViewData.setTextColor(ContextCompat.getColor(this, R.color.reader_sepia_text))
+            }
+            THEME_MIDNIGHT -> {
+                scrollView.setBackgroundColor(ContextCompat.getColor(this, R.color.reader_midnight_bg))
+                textViewData.setTextColor(ContextCompat.getColor(this, R.color.reader_midnight_text))
+            }
+            else -> {
+                // THEME_SYSTEM - use default app theme colors
+                // Note: When switching to System theme, the activity will recreate via AppCompatDelegate.setDefaultNightMode
+                // so we just need to set reasonable defaults here that will be replaced on recreation
+                val typedValue = TypedValue()
+                
+                // Use colorSurface for background instead of colorBackground for better compatibility
+                if (theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)) {
+                    scrollView.setBackgroundColor(typedValue.data)
+                } else {
+                    // Fallback to a safe default
+                    scrollView.setBackgroundColor(ContextCompat.getColor(this, android.R.color.background_light))
+                }
+                
+                if (theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, typedValue, true)) {
+                    textViewData.setTextColor(typedValue.data)
+                } else {
+                    // Fallback to ensure text is visible
+                    textViewData.setTextColor(ContextCompat.getColor(this, android.R.color.black))
+                }
+            }
+        }
     }
 
     private fun enterFullScreen() {

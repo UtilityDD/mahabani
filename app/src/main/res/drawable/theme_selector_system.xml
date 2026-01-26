@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true">
+        <layer-list>
+            <item>
+                <shape android:shape="oval">
+                    <solid android:color="#FDFBFF"/>
+                    <stroke android:width="3dp" android:color="?attr/colorPrimary"/>
+                </shape>
+            </item>
+            <item android:top="6dp" android:bottom="6dp" android:left="6dp" android:right="6dp">
+                <rotate android:fromDegrees="45" android:pivotX="50%" android:pivotY="50%">
+                    <shape android:shape="rectangle">
+                        <gradient android:startColor="#FDFBFF" android:endColor="#1A1C1E" android:angle="0"/>
+                    </shape>
+                </rotate>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="oval">
+                    <stroke android:width="1dp" android:color="#DDDDDD"/>
+                </shape>
+            </item>
+            <item android:top="2dp" android:bottom="2dp" android:left="2dp" android:right="2dp">
+                 <shape android:shape="oval">
+                    <!-- A split color effect for system -->
+                    <gradient android:startColor="#FDFBFF" android:centerColor="#FDFBFF" android:centerX="0.5" android:endColor="#1A1C1E" android:angle="0"/>
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

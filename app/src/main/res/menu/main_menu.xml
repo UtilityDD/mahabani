@@ -12,7 +12,7 @@
     <item
         android:id="@+id/action_theme_toggle"
         android:icon="@drawable/ic_dark_mode"
-        android:title="Toggle Theme"
+        android:title="Reading Themes"
         app:showAsAction="ifRoom" />
 
     <item

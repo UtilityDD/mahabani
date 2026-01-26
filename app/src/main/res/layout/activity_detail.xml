@@ -37,7 +37,7 @@
             <!-- Spacer to push content below the parallax image -->
             <View
                 android:layout_width="match_parent"
-                android:layout_height="200dp" />
+                android:layout_height="80dp" />
 
 
             <!-- Centered Header Text Section -->
@@ -45,7 +45,7 @@
                 android:id="@+id/textViewHeading"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="8dp"
                 android:gravity="center_horizontal"
                 style="@style/ChapterDetailHeading.TextView"
                 android:paddingStart="16dp"
