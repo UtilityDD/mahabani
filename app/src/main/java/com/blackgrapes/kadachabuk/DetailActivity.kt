@@ -84,6 +84,7 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var previousMatchButton: ImageButton
     private lateinit var nextMatchButton: ImageButton
     private lateinit var matchCountTextView: TextView
+    private lateinit var bookId: String
 
     private var chapterHeading: String? = null
     private var chapterDate: String? = null
@@ -148,18 +149,72 @@ class DetailActivity : AppCompatActivity() {
         val writer = intent.getStringExtra("EXTRA_WRITER")
         chapterSerial = intent.getStringExtra("EXTRA_SERIAL") ?: ""
         languageCode = intent.getStringExtra("EXTRA_LANGUAGE_CODE") ?: ""
+        bookId = intent.getStringExtra("EXTRA_BOOK_ID") ?: "kada_chabuk"
 
         textViewHeading.text = chapterHeading
-        textViewDate.text = chapterDate?.removeSurrounding("(", ")")
+        val formattedDate = chapterDate?.removeSurrounding("(", ")") ?: ""
+        textViewDate.text = if (formattedDate.trim().equals("N/A", ignoreCase = true)) "" else formattedDate
 
         // --- MARKDOWN RENDERING ---
-        // 1. Create a Markwon instance (with table and link support)
+        
+        // Pre-process content to handle custom image tags
+        val processedContent = processCustomImageTags(dataContent ?: "")
+
+        // 1. Create a Markwon instance (with table, link, image, and html support)
         val markwon = Markwon.builder(this)
             .usePlugin(TablePlugin.create(this))
-            .usePlugin(LinkifyPlugin.create()) // This enables clickable links
+            .usePlugin(LinkifyPlugin.create())
+            .usePlugin(io.noties.markwon.html.HtmlPlugin.create { plugin ->
+                plugin.addHandler(object : io.noties.markwon.html.TagHandler() {
+                    override fun handle(visitor: io.noties.markwon.MarkwonVisitor, renderer: io.noties.markwon.html.MarkwonHtmlRenderer, tag: io.noties.markwon.html.HtmlTag) {
+                         val spans = arrayOf(
+                             android.text.style.AlignmentSpan.Standard(android.text.Layout.Alignment.ALIGN_CENTER),
+                             android.text.style.RelativeSizeSpan(0.75f),
+                             android.text.style.StyleSpan(android.graphics.Typeface.ITALIC),
+                             android.text.style.ForegroundColorSpan(android.graphics.Color.DKGRAY)
+                         )
+                         for (span in spans) {
+                             visitor.builder().setSpan(span, tag.start(), tag.end(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                         }
+                    }
+
+                    override fun supportedTags(): Collection<String> {
+                        return setOf("book-caption")
+                    }
+                })
+            }) // Enable HTML with custom caption styling
+            .usePlugin(io.noties.markwon.image.ImagesPlugin.create { plugin ->
+                plugin.addSchemeHandler(object : io.noties.markwon.image.SchemeHandler() {
+                    override fun handle(raw: String, uri: Uri): io.noties.markwon.image.ImageItem {
+                        val transparentDrawable = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+                        return try {
+                            val resourceName = uri.authority
+                            if (resourceName != null) {
+                                val resId = resources.getIdentifier(resourceName, "drawable", packageName)
+                                if (resId != 0) {
+                                    val drawable = ContextCompat.getDrawable(this@DetailActivity, resId)
+                                    io.noties.markwon.image.ImageItem.withResult(drawable ?: transparentDrawable)
+                                } else {
+                                    io.noties.markwon.image.ImageItem.withResult(transparentDrawable) 
+                                }
+                            } else {
+                                io.noties.markwon.image.ImageItem.withResult(transparentDrawable)
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            io.noties.markwon.image.ImageItem.withResult(transparentDrawable)
+                        }
+                    }
+
+                    override fun supportedSchemes(): Collection<String> {
+                        return setOf("drawable")
+                    }
+                })
+            })
             .build()
-        // 2. Set the markdown content to the TextView
-        markwon.setMarkdown(textViewData, dataContent ?: "")
+
+        // 2. Set the processed markdown content to the TextView
+        markwon.setMarkdown(textViewData, processedContent)
 
         title = chapterHeading ?: "Details"
 
@@ -470,7 +525,7 @@ class DetailActivity : AppCompatActivity() {
 
     private fun getScrollPositionKey(): String? {
         return if (::chapterSerial.isInitialized && ::languageCode.isInitialized && chapterSerial.isNotEmpty() && languageCode.isNotEmpty()) {
-            "scroll_pos_${languageCode}_${chapterSerial}"
+            "scroll_pos_${bookId}_${languageCode}_${chapterSerial}"
         } else {
             null
         }
@@ -478,7 +533,7 @@ class DetailActivity : AppCompatActivity() {
 
     private fun getBookmarkKey(): String? {
         return if (::chapterSerial.isInitialized && ::languageCode.isInitialized && chapterSerial.isNotEmpty() && languageCode.isNotEmpty()) {
-            "bookmark_${languageCode}_${chapterSerial}"
+            "bookmark_${bookId}_${languageCode}_${chapterSerial}"
         } else {
             null
         }
@@ -500,7 +555,7 @@ class DetailActivity : AppCompatActivity() {
 
     private fun getTimestampKey(): String? {
         return if (::chapterSerial.isInitialized && ::languageCode.isInitialized && chapterSerial.isNotEmpty() && languageCode.isNotEmpty()) {
-            "scroll_time_${languageCode}_${chapterSerial}"
+            "scroll_time_${bookId}_${languageCode}_${chapterSerial}"
         } else {
             null
         }
@@ -579,7 +634,7 @@ class DetailActivity : AppCompatActivity() {
 
     private fun getHistoryKeyBase(): String? {
         return if (::chapterSerial.isInitialized && ::languageCode.isInitialized && chapterSerial.isNotEmpty() && languageCode.isNotEmpty()) {
-            "${languageCode}_${chapterSerial}"
+            "${bookId}_${languageCode}_${chapterSerial}"
         } else {
             null
         }
@@ -626,8 +681,8 @@ class DetailActivity : AppCompatActivity() {
         if (::chapterSerial.isInitialized && ::languageCode.isInitialized && chapterSerial.isNotEmpty() && languageCode.isNotEmpty()) {
             val prefs = getSharedPreferences(LAST_READ_PREFS, Context.MODE_PRIVATE)
             with(prefs.edit()) {
-                putString(KEY_LAST_READ_SERIAL, chapterSerial)
-                putString(KEY_LAST_READ_LANG, languageCode)
+                putString("${KEY_LAST_READ_SERIAL}_$bookId", chapterSerial)
+                putString("${KEY_LAST_READ_LANG}_$bookId", languageCode)
                 apply()
             }
         }
@@ -793,7 +848,6 @@ class DetailActivity : AppCompatActivity() {
     }
 
     private fun enterFullScreen() {
-        // ... (enterFullScreen logic remains the same)
         if (isFullScreen) return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -821,6 +875,25 @@ class DetailActivity : AppCompatActivity() {
         val insets = ViewCompat.getRootWindowInsets(window.decorView)
         val systemBarInsets = insets?.getInsets(WindowInsetsCompat.Type.systemBars())
         scrollView.setPadding(systemBarInsets?.left ?: 0, 0, systemBarInsets?.right ?: 0, 0)
+    }
+
+    private fun processCustomImageTags(text: String): String {
+        // Pattern: {{image:filename.ext | caption}}
+        // Captures: 1=filename with ext, 2=caption
+        val regex = Regex("\\{\\{image:(.*?) \\| (.*?)\\}\\}")
+        return regex.replace(text) { matchResult ->
+            val filenameWithExt = matchResult.groupValues[1].trim()
+            val caption = matchResult.groupValues[2].trim()
+            // Remove extension to get resource name (e.g., "image.webp" -> "image")
+            // Also sanitize: replace hyphens with underscores and ensure lowercase
+            val resourceName = filenameWithExt.substringBeforeLast(".")
+                .replace("-", "_")
+                .lowercase()
+            
+            // Convert to Markdown image syntax using custom 'drawable' scheme
+            // Structure: Image + Newline + Custom Styled Caption Tag (with inner newlines for alignment)
+            "\n\n![${caption}](drawable://${resourceName})\n<book-caption>\n${caption}\n</book-caption>\n\n"
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

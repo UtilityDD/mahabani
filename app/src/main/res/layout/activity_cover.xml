@@ -38,14 +38,14 @@
             android:layout_height="match_parent"
             android:scaleType="centerCrop"
             android:src="@drawable/bookshelf_bg"
-            android:alpha="0.3"
+            android:alpha="0.8"
             android:contentDescription="Bookshelf Background" />
 
         <!-- Dark overlay for blur effect -->
         <View
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#B0000000"
+            android:background="#80000000"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
 

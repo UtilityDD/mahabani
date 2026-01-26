@@ -59,11 +59,12 @@ class SearchResultAdapter(private var searchResults: List<SearchResult>) :
                 val context = it.context
                 val intent = Intent(context, DetailActivity::class.java).apply {
                     putExtra("EXTRA_HEADING", chapter.heading)
-                    putExtra("EXTRA_DATE", chapter.date)
+                    putExtra("EXTRA_DATE", chapter.date ?: "")
                     putExtra("EXTRA_DATA", chapter.dataText)
                     putExtra("EXTRA_WRITER", chapter.writer)
                     putExtra("EXTRA_SERIAL", chapter.serial)
                     putExtra("EXTRA_LANGUAGE_CODE", chapter.languageCode)
+                    putExtra("EXTRA_BOOK_ID", chapter.bookId) // Pass bookId
                     putExtra("EXTRA_SEARCH_QUERY", query) // Pass the search query
                 }
                 context.startActivity(intent)

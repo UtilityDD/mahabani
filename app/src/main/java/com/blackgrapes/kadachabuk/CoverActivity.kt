@@ -36,6 +36,8 @@ import kotlinx.coroutines.launch
 import android.util.TypedValue
 import android.app.Dialog
 import android.content.DialogInterface
+import android.text.TextUtils
+import com.blackgrapes.kadachabuk.WindowUtils
 
 class CoverActivity : AppCompatActivity() {
 
@@ -51,24 +53,15 @@ class CoverActivity : AppCompatActivity() {
 
     private lateinit var shelfBooksContainer: android.widget.LinearLayout
     private var currentBookshelfLanguage: String? = null
-    
-    // Class-level book definitions for searching/filtering
-    private val bookDefinitions = listOf(
-        BookData("Kada Chabuk", R.drawable.spine_horizontal_kada_chabuk, R.drawable.cover_kada_chabuk, "01"),
-        BookData("The Echo", R.drawable.spine_horizontal_the_echo, R.drawable.cover_the_echo, "02"),
-        BookData("Silent Hill", R.drawable.spine_horizontal_silent_hill, R.drawable.cover_silent_hill, "03"),
-        BookData("Lost City", R.drawable.spine_horizontal_lost_city, R.drawable.cover_lost_city, "04"),
-        BookData("Red Sky", R.drawable.spine_horizontal_red_sky, R.drawable.cover_red_sky, "05"),
-        BookData("Ocean Deep", R.drawable.spine_horizontal_ocean_deep, R.drawable.cover_ocean_deep, "06"),
-        BookData("Mystic Tales", R.drawable.spine_horizontal_the_echo, R.drawable.cover_the_echo, "07"),
-        BookData("Desert Winds", R.drawable.spine_horizontal_red_sky, R.drawable.cover_red_sky, "08"),
-        BookData("Frozen Dreams", R.drawable.spine_horizontal_silent_hill, R.drawable.cover_silent_hill, "09"),
-        BookData("Crimson Night", R.drawable.spine_horizontal_red_sky, R.drawable.cover_red_sky, "10"),
-        BookData("Golden Dawn", R.drawable.spine_horizontal_kada_chabuk, R.drawable.cover_kada_chabuk, "11"),
-        BookData("Shadow Walker", R.drawable.spine_horizontal_silent_hill, R.drawable.cover_silent_hill, "12"),
-        BookData("Ancient Ruins", R.drawable.spine_horizontal_lost_city, R.drawable.cover_lost_city, "13"),
-        BookData("Starlight Path", R.drawable.spine_horizontal_ocean_deep, R.drawable.cover_ocean_deep, "14"),
-        BookData("Thunder Storm", R.drawable.spine_horizontal_silent_hill, R.drawable.cover_silent_hill, "15")
+    private var fetchedBooks: List<LibraryBook> = emptyList()
+
+    private val bookAssetsMap = mapOf(
+        "kada_chabuk" to Pair(R.drawable.spine_horizontal_kada_chabuk, R.drawable.cover_kada_chabuk),
+        "shaishab_kahini" to Pair(R.drawable.spine_horizontal_the_echo, R.drawable.cover_the_echo),
+        "silent_hill" to Pair(R.drawable.spine_horizontal_silent_hill, R.drawable.cover_silent_hill),
+        "lost_city" to Pair(R.drawable.spine_horizontal_lost_city, R.drawable.cover_lost_city),
+        "red_sky" to Pair(R.drawable.spine_horizontal_red_sky, R.drawable.cover_red_sky),
+        "ocean_deep" to Pair(R.drawable.spine_horizontal_ocean_deep, R.drawable.cover_ocean_deep)
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,6 +81,8 @@ class CoverActivity : AppCompatActivity() {
 
         startAnimationSequence()
         preloadChapters()
+        observeViewModel()
+        bookViewModel.fetchLibraryMetadata()
 
         coverLayout.setOnClickListener {
             if (isAnimationSkippable) {
@@ -101,6 +96,15 @@ class CoverActivity : AppCompatActivity() {
         
         setupSearch()
         handleWindowInsets()
+    }
+
+    private fun observeViewModel() {
+        bookViewModel.libraryBooks.observe(this) { books ->
+            fetchedBooks = books
+            if (bookshelfContainer.visibility == View.VISIBLE) {
+                refreshShelf(currentBookshelfLanguage ?: "bn")
+            }
+        }
     }
 
     private fun handleWindowInsets() {
@@ -151,17 +155,19 @@ class CoverActivity : AppCompatActivity() {
     
     private fun filterBooks(query: String) {
         shelfBooksContainer.removeAllViews()
+        val lang = currentBookshelfLanguage ?: "bn"
         val filteredList = if (query.isEmpty()) {
-            bookDefinitions
+            fetchedBooks
         } else {
-            bookDefinitions.filter { 
-                it.title.contains(query, ignoreCase = true) || 
-                it.serial.contains(query, ignoreCase = true) 
+            fetchedBooks.filter { book ->
+                val name = book.getLocalizedName(lang)
+                name.contains(query, ignoreCase = true) || 
+                book.sl.contains(query, ignoreCase = true) 
             }
         }
         
         for (book in filteredList) {
-            val bookView = createBookView(book)
+            val bookView = createBookView(book, lang)
             shelfBooksContainer.addView(bookView)
         }
     }
@@ -224,34 +230,27 @@ class CoverActivity : AppCompatActivity() {
         }
     }
 
-    // Data class for book configuration - easy to add more books
-    // TODO: Add horizontal spine and cover images to drawable folder
-    // Naming: spine_horizontal_[name].png and cover_[name].png
-    data class BookData(
-        val title: String, 
-        val spineDrawable: Int,  // Horizontal spine image (book lying flat)
-        val coverDrawable: Int,  // Front cover image
-        val serial: String       // Library serial number
-    )
-
     private enum class BookState { SPINE, COVER }
     private val bookStates = mutableMapOf<String, BookState>()
 
     private fun populateBookshelf() {
         // Track the language used for this population
         val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-        currentBookshelfLanguage = sharedPreferences.getString("selected_language_code", "bn") ?: "bn"
+        val lang = sharedPreferences.getString("selected_language_code", "bn") ?: "bn"
+        currentBookshelfLanguage = lang
 
         // Initialize all as showing spine
-        bookDefinitions.forEach { bookStates[it.title] = BookState.SPINE }
+        fetchedBooks.forEach { bookStates[it.bookId] = BookState.SPINE }
 
-        for (book in bookDefinitions) {
-            val bookView = createBookView(book)
+        for (book in fetchedBooks) {
+            val bookView = createBookView(book, lang)
             shelfBooksContainer.addView(bookView)
         }
     }
 
-    private fun createBookView(book: BookData): View {
+    private fun createBookView(book: LibraryBook, lang: String): View {
+        val (spineRes, coverRes) = bookAssetsMap[book.bookId] ?: Pair(R.drawable.spine_horizontal_the_echo, R.drawable.cover_the_echo)
+        
         // Container for the book with shadow
         val cardView = android.widget.FrameLayout(this)
         val cardParams = android.widget.LinearLayout.LayoutParams(
@@ -262,73 +261,92 @@ class CoverActivity : AppCompatActivity() {
         cardView.layoutParams = cardParams
         cardView.elevation = dpToPx(4f).toFloat()
         
-        // The book image (will switch between spine and cover)
+        // The book image
         val imageView = ImageView(this)
         val imageParams = android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT
         )
         imageView.layoutParams = imageParams
-        imageView.setImageResource(book.spineDrawable)
+        imageView.setImageResource(spineRes)
         imageView.scaleType = ImageView.ScaleType.CENTER_CROP
-        imageView.contentDescription = book.title
+        imageView.contentDescription = book.getLocalizedName(lang)
         imageView.tag = book // Store book data in tag
         
         cardView.addView(imageView)
         
-        // Add library sticker (Serial Number) on the left side of spine
+        // Add library sticker (Serial Number)
         val stickerTextView = TextView(this)
-        val size = dpToPx(38f) // Square size for circular sticker
+        val size = dpToPx(38f)
         val stickerParams = android.widget.FrameLayout.LayoutParams(size, size)
         stickerParams.gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
         stickerParams.marginStart = dpToPx(16f)
         stickerTextView.layoutParams = stickerParams
         stickerTextView.background = ContextCompat.getDrawable(this, R.drawable.library_sticker)
-        stickerTextView.text = book.serial
+        stickerTextView.text = book.sl
         stickerTextView.textSize = 12f
-        stickerTextView.setTextColor(android.graphics.Color.parseColor("#5D4037")) // Warm brown-grey
+        stickerTextView.setTextColor(android.graphics.Color.parseColor("#5D4037"))
         stickerTextView.typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
         stickerTextView.gravity = android.view.Gravity.CENTER
         stickerTextView.setPadding(0, 0, 0, 0)
-        stickerTextView.tag = "spine_text" // Ensure it hides when flipping or clicking
+        stickerTextView.tag = "spine_text"
         
         cardView.addView(stickerTextView)
 
-        // Add text overlay on spine
-        val textView = TextView(this)
-        val textParams = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+        // Title and Year Container
+        val labelContainer = android.widget.LinearLayout(this)
+        labelContainer.orientation = android.widget.LinearLayout.VERTICAL
+        val labelParams = android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
             android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
         )
-        textParams.gravity = android.view.Gravity.CENTER
-        textView.layoutParams = textParams
-        
-        // Localize the title on the spine if it's Kada Chabuk
-        val displayName = if (book.title == "Kada Chabuk") getLocalizedBookName() else book.title
-        textView.text = displayName
-        
+        labelParams.gravity = android.view.Gravity.CENTER_VERTICAL
+        labelParams.marginStart = dpToPx(72f) // Leaving space for sticker (16dp margin + 38dp sticker + padding)
+        labelParams.marginEnd = dpToPx(16f)
+        labelContainer.layoutParams = labelParams
+        labelContainer.gravity = android.view.Gravity.CENTER
+        labelContainer.tag = "spine_text"
+
+        // Main Title
+        val textView = TextView(this)
+        textView.text = book.getLocalizedName(lang)
         textView.setTextColor(android.graphics.Color.parseColor("#E0C090")) // Gold text
         textView.textSize = 16f
         textView.typeface = android.graphics.Typeface.DEFAULT_BOLD
         textView.setShadowLayer(4f, 2f, 2f, android.graphics.Color.BLACK)
-        textView.id = android.view.View.generateViewId()
-        textView.tag = "spine_text" // Tag to identify and hide when flipping
+        textView.gravity = android.view.Gravity.CENTER
+        textView.maxLines = 2
+        textView.ellipsize = android.text.TextUtils.TruncateAt.END
+        labelContainer.addView(textView)
+
+        // Subtitle / Year
+        val subText = book.getLocalizedSubName(lang)
+        val yearText = book.getLocalizedYear(lang)
+        val subtitleContent = if (subText.isNotEmpty() && yearText.isNotEmpty()) "$subText ($yearText)" else "$subText$yearText"
         
-        cardView.addView(textView)
+        if (subtitleContent.isNotEmpty()) {
+            val subTextView = TextView(this)
+            subTextView.text = subtitleContent
+            subTextView.setTextColor(android.graphics.Color.parseColor("#B0A080")) // Muted gold
+            subTextView.textSize = 11f
+            subTextView.typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.ITALIC)
+            labelContainer.addView(subTextView)
+        }
+        
+        cardView.addView(labelContainer)
 
         cardView.setOnClickListener {
-            handleBookClick(imageView, cardView, book)
+            handleBookClick(imageView, cardView, book, lang, coverRes)
         }
 
         return cardView
     }
 
-    private fun handleBookClick(imageView: ImageView, cardView: android.widget.FrameLayout, book: BookData) {
-        // Show full screen cover overlay
-        showBookCoverOverlay(book)
+    private fun handleBookClick(imageView: ImageView, cardView: android.widget.FrameLayout, book: LibraryBook, lang: String, coverRes: Int) {
+        showBookCoverOverlay(book, lang, coverRes)
     }
 
-    private fun showBookCoverOverlay(book: BookData) {
+    private fun showBookCoverOverlay(book: LibraryBook, lang: String, coverRes: Int) {
         // Create fullscreen overlay
         val overlay = android.widget.FrameLayout(this)
         overlay.setBackgroundColor(android.graphics.Color.parseColor("#E0000000")) // Darker semi-transparent
@@ -357,7 +375,7 @@ class CoverActivity : AppCompatActivity() {
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT
         )
         coverImage.layoutParams = coverParams
-        coverImage.setImageResource(book.coverDrawable)
+        coverImage.setImageResource(coverRes)
         coverImage.scaleType = ImageView.ScaleType.FIT_XY
         coverImage.elevation = dpToPx(12f).toFloat()
         
@@ -372,13 +390,13 @@ class CoverActivity : AppCompatActivity() {
         titleParams.gravity = android.view.Gravity.CENTER
         titleText.layoutParams = titleParams
         
-        // Localize the title if it's Kada Chabuk
-        val displayTitle = if (book.title == "Kada Chabuk") getLocalizedBookName() else book.title
+        // Localize the title 
+        val displayTitle = book.getLocalizedName(lang)
         titleText.text = displayTitle
         
         titleText.textSize = 32f
         titleText.setTextColor(
-            if (book.title == "Kada Chabuk") 
+            if (book.bookId == "kada_chabuk") 
                 android.graphics.Color.parseColor("#FFD700") // Gold for Kada Chabuk
             else 
                 android.graphics.Color.parseColor("#F5F5DC") // Beige/cream for others
@@ -392,12 +410,8 @@ class CoverActivity : AppCompatActivity() {
         titleText.translationZ = dpToPx(20f).toFloat() 
         titleText.elevation = dpToPx(15f).toFloat()
         
-        // Removed semi-transparent background for a cleaner, more minimal look
-        
         bookContainer.addView(titleText)
         overlay.addView(bookContainer)
-        
-        // REMOVED "Tap to Open" text for a cleaner, more minimal look as requested
         
         // Add to root view
         val rootView = window.decorView.findViewById<android.view.ViewGroup>(android.R.id.content)
@@ -414,9 +428,9 @@ class CoverActivity : AppCompatActivity() {
         
         // Handle overlay click
         overlay.setOnClickListener {
-            if (book.title == "Kada Chabuk") {
+            if (book.sheetId.isNotEmpty()) {
                 // Gentle transition to meditative images (automatically moves to index)
-                startMeditativeTransition(rootView, overlay)
+                startMeditativeTransition(rootView, overlay, book.bookId)
             } else {
                 // Redirect back to book-list (close overlay) for unlinked books
                 bookContainer.animate()
@@ -436,7 +450,7 @@ class CoverActivity : AppCompatActivity() {
         }
     }
 
-    private fun startMeditativeTransition(rootView: android.view.ViewGroup, coverOverlay: View) {
+    private fun startMeditativeTransition(rootView: android.view.ViewGroup, coverOverlay: View, bookId: String) {
         // Create full screen transition overlay
         val transitionOverlay = android.widget.FrameLayout(this)
         transitionOverlay.setBackgroundColor(android.graphics.Color.BLACK)
@@ -483,11 +497,10 @@ class CoverActivity : AppCompatActivity() {
             // 2. Display the image for a very short meditative moment
             delay(1000)
             
-            // 3. Navigate directly to MainActivity (without fading out the overlay here)
-            // The activity transition (fade_out) will handle the smooth transition to the next screen.
-            navigateToMain()
+            // 3. Navigate directly to MainActivity
+            navigateToMain(bookId)
             
-            // Cleanup the overlay after some delay to ensure it's not visible during activity exit
+            // Cleanup the overlay
             delay(800)
             rootView.removeView(transitionOverlay)
         }
@@ -495,21 +508,6 @@ class CoverActivity : AppCompatActivity() {
 
     private fun dpToPx(dp: Float): Int {
         return (dp * resources.displayMetrics.density).toInt()
-    }
-
-    private suspend fun fadeIn(view: View, duration: Long) {
-        view.alpha = 0f
-        view.visibility = View.VISIBLE
-        view.animate().alpha(1f).setDuration(duration).start()
-        delay(duration)
-    }
-
-    private suspend fun fadeOut(view: View, duration: Long, waitForCompletion: Boolean = true) {
-        view.animate().alpha(0f).setDuration(duration).start()
-        if (waitForCompletion) {
-            delay(duration)
-            view.visibility = View.INVISIBLE
-        }
     }
 
     private fun skipAnimation() {
@@ -525,32 +523,15 @@ class CoverActivity : AppCompatActivity() {
             populateBookshelf()
         }
     }
-    private fun navigateToMain() {
-        // Stop the animation when we navigate away
-        animationJob?.cancel()
-        coverLayout.setOnClickListener(null) // Prevent double taps
 
-        // Now it's safe to start the new activity and its transition.
+    private fun navigateToMain(bookId: String) {
+        animationJob?.cancel()
+        coverLayout.setOnClickListener(null)
+
         val intent = Intent(this, MainActivity::class.java)
+        intent.putExtra("selected_book_id", bookId)
         startActivity(intent)
         overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
-        // Don't call finish() - keep CoverActivity in back stack so user can return to bookshelf
-    }
-
-    private fun getLocalizedBookName(): String {
-        val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-        val langCode = sharedPreferences.getString("selected_language_code", "bn") ?: "bn"
-        
-        return when (langCode) {
-            "bn" -> "কড়া চাবুক"
-            "hi" -> "कड़ा चाबुक"
-            "en" -> "Kada Chabuk"
-            "tm" -> "கடா சாபுக்"
-            "kn" -> "ಕಡಾ ಚಾಬುಕ್"
-            "as" -> "কড়া চাবুক"
-            "od" -> "କଡ଼ା ଚାବୁକ୍"
-            else -> "Kada Chabuk"
-        }
     }
 
     private fun showLanguageSelectionDialog(isCancelable: Boolean) {
@@ -573,74 +554,18 @@ class CoverActivity : AppCompatActivity() {
         (rvLanguages.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
 
         animationScope.launch {
-            val downloadedCodes = bookViewModel.getDownloadedLanguageCodes()
-            val languageAdapter = LanguageAdapter(
+            val languageAdapter = SimplifiedLanguageAdapter(
                 languages = languageNamesArr.zip(languageCodesArr).toList(),
-                downloadedLanguageCodes = downloadedCodes,
                 currentSelectedCode = savedLangCode,
-                onLanguageSelected = { langCode, langName ->
-                    if (downloadedCodes.contains(langCode)) {
-                        saveLanguagePreference(langCode)
-                        bookViewModel.fetchAndLoadChapters(langCode, langName, forceDownload = false)
-                        refreshShelf(langCode)
-                        dialog.dismiss()
-                    } else {
-                        showDownloadConfirmationDialog(langName) {
-                            saveLanguagePreference(langCode)
-                            bookViewModel.fetchAndLoadChapters(langCode, langName, forceDownload = false)
-                            refreshShelf(langCode)
-                            dialog.dismiss()
-                        }
-                    }
-                },
-                onLanguageDelete = { langCode, langName ->
-                    showDeleteLanguageConfirmationDialog(langCode, langName) {
-                        dialog.dismiss()
-                    }
+                onLanguageSelected = { langCode ->
+                    saveLanguagePreference(langCode)
+                    refreshShelf(langCode)
+                    dialog.dismiss()
                 }
             )
             rvLanguages.adapter = languageAdapter
         }
         dialog.show()
-    }
-
-    private fun showDownloadConfirmationDialog(langName: String, onConfirm: () -> Unit) {
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("Download in $langName?")
-            .setMessage(HtmlCompat.fromHtml(
-                "<i>Kada Chabuk</i> in '$langName' are not downloaded. Would you like to download them now?",
-                HtmlCompat.FROM_HTML_MODE_LEGACY
-            ))
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Download") { _, _ ->
-                onConfirm()
-            }
-            .create()
-
-        dialog.setOnShowListener {
-            val positiveButton = dialog.getButton(DialogInterface.BUTTON_POSITIVE)
-            val typedValue = TypedValue()
-            theme.resolveAttribute(android.R.attr.colorPrimary, typedValue, true)
-            val primaryColor = if (typedValue.resourceId != 0) {
-                ContextCompat.getColor(this, typedValue.resourceId)
-            } else typedValue.data
-            positiveButton.setBackgroundColor(primaryColor)
-            positiveButton.setTextColor(android.graphics.Color.WHITE)
-        }
-
-        dialog.show()
-    }
-
-    private fun showDeleteLanguageConfirmationDialog(langCode: String, langName: String, onConfirm: () -> Unit) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Delete Data for $langName?")
-            .setMessage("This will remove all downloaded chapters for this language.")
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Delete") { _, _ ->
-                bookViewModel.deleteChaptersForLanguage(langCode)
-                onConfirm()
-            }
-            .show()
     }
 
     private fun saveLanguagePreference(languageCode: String) {
@@ -659,7 +584,6 @@ class CoverActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Cancel the coroutine job to prevent leaks
         animationJob?.cancel()
     }
 
@@ -667,17 +591,51 @@ class CoverActivity : AppCompatActivity() {
         val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
         val savedLangCode = sharedPreferences.getString("selected_language_code", null)
 
-        // If a language is selected, start fetching chapters.
-        // If not, MainActivity will show the language selection dialog on first launch.
         if (savedLangCode != null) {
             val languageNames = resources.getStringArray(R.array.language_names)
             val languageCodes = resources.getStringArray(R.array.language_codes)
             val langIndex = languageCodes.indexOf(savedLangCode)
 
             if (langIndex != -1) {
-                Log.d("CoverActivity", "Preloading chapters for $savedLangCode")
-                bookViewModel.fetchAndLoadChapters(savedLangCode, languageNames[langIndex], forceDownload = false)
+                bookViewModel.fetchAndLoadChapters(savedLangCode, languageNames[langIndex], forceDownload = false, bookId = "kada_chabuk")
             }
         }
+    }
+
+    // --- Helper Extensions for LibraryBook Localization ---
+    private fun LibraryBook.getLocalizedName(lang: String): String {
+        return when(lang) {
+            "bn" -> bnName
+            "hi" -> hiName
+            "en" -> enName
+            "as" -> asName
+            "od" -> odName
+            "tm" -> tmName
+            else -> enName
+        }.ifEmpty { enName }
+    }
+
+    private fun LibraryBook.getLocalizedSubName(lang: String): String {
+        return when(lang) {
+            "bn" -> bnSubName
+            "hi" -> hiSubName
+            "en" -> enSubName
+            "as" -> asSubName
+            "od" -> odSubName
+            "tm" -> tmSubName
+            else -> enSubName
+        }.ifEmpty { enSubName }
+    }
+
+    private fun LibraryBook.getLocalizedYear(lang: String): String {
+        return when(lang) {
+            "bn" -> bnYear
+            "hi" -> hiYear
+            "en" -> enYear
+            "as" -> asYear
+            "od" -> odYear
+            "tm" -> tmYear
+            else -> enYear
+        }.ifEmpty { enYear }
     }
 }

@@ -76,6 +76,8 @@ dependencies {
     implementation ("io.noties.markwon:core:4.6.2")
     implementation ("io.noties.markwon:ext-tables:4.6.2")
     implementation ("io.noties.markwon:linkify:4.6.2") // For clickable links
+    implementation ("io.noties.markwon:image:4.6.2") // For inline images
+    implementation ("io.noties.markwon:html:4.6.2") // For text styling (center, small, etc.)
     // Room components
     val roomVersion = "2.6.1" // Use the latest stable version
     implementation("androidx.room:room-runtime:$roomVersion")

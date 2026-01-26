@@ -27,8 +27,8 @@
             android:textAppearance="?attr/textAppearanceTitleMedium"
             android:textColor="?attr/colorOnPrimaryContainer"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="@+id/textViewHeading"
-            app:layout_constraintBottom_toBottomOf="@+id/textViewDate"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
             tools:text="1" />
 
         <TextView
@@ -42,49 +42,62 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@id/textViewSerial"
             app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/subtitleContainer"
+            app:layout_constraintVertical_chainStyle="packed"
             tools:text="Chapter Heading That Can Be Quite Long" />
 
-        <TextView
-            android:id="@+id/textViewDate"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:id="@+id/subtitleContainer"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:textAppearance="?attr/textAppearanceBody2"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            app:layout_constraintStart_toStartOf="@id/textViewHeading"
-            app:layout_constraintTop_toBottomOf="@id/textViewHeading"
-            tools:text="Date" />
-
-        <TextView
-            android:id="@+id/textViewLastRead"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/last_read_indicator_background"
-            android:paddingStart="6dp"
-            android:paddingTop="2dp"
-            android:paddingEnd="6dp"
-            android:paddingBottom="2dp"
-            android:text="Last read"
-            android:textAppearance="?attr/textAppearanceLabelMedium"
-            android:textColor="?attr/colorOnPrimaryContainer"
-            android:visibility="gone"
-            app:layout_constraintBottom_toBottomOf="@+id/textViewDate"
-            app:layout_constraintStart_toEndOf="@+id/textViewDate"
-            app:layout_constraintTop_toTopOf="@+id/textViewDate" />
-
-        <TextView
-            android:id="@+id/textViewHistory"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_history"
-            android:drawablePadding="4dp"
+            android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:textAppearance="?attr/textAppearanceLabelMedium"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:visibility="gone"
+            android:layout_marginTop="4dp"
+            app:layout_constraintStart_toStartOf="@id/textViewHeading"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@+id/textViewDate"
-            tools:text="3 / 2h 15m" />
+            app:layout_constraintTop_toBottomOf="@id/textViewHeading"
+            app:layout_constraintBottom_toBottomOf="parent">
+
+            <TextView
+                android:id="@+id/textViewDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBody2"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                tools:text="Date" />
+
+            <TextView
+                android:id="@+id/textViewLastRead"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/last_read_indicator_background"
+                android:paddingStart="6dp"
+                android:paddingTop="2dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="2dp"
+                android:text="Last read"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textColor="?attr/colorOnPrimaryContainer"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/textViewHistory"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:drawableStart="@drawable/ic_history"
+                android:drawablePadding="4dp"
+                android:gravity="center_vertical"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:visibility="gone"
+                tools:text="3 / 2h 15m" />
+
+        </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>

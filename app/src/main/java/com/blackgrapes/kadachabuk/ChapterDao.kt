@@ -14,26 +14,24 @@ interface ChapterDao {
     @Upsert
     suspend fun upsertChapters(chapters: List<Chapter>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE) // Replace if a chapter with the same primary key (or unique index conflict) exists
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChapters(chapters: List<Chapter>)
 
-    @Query("SELECT * FROM chapters WHERE languageCode = :languageCode ORDER BY serial ASC") // Or however you want to order
-    suspend fun getChaptersByLanguage(languageCode: String): List<Chapter>
+    @Query("SELECT * FROM chapters WHERE languageCode = :languageCode AND bookId = :bookId ORDER BY CAST(serial AS INTEGER) ASC")
+    suspend fun getChaptersByLanguageAndBook(languageCode: String, bookId: String): List<Chapter>
 
-    @Query("DELETE FROM chapters WHERE languageCode = :languageCode")
-    suspend fun deleteChaptersByLanguage(languageCode: String)
+    @Query("DELETE FROM chapters WHERE languageCode = :languageCode AND bookId = :bookId")
+    suspend fun deleteChaptersByLanguageAndBook(languageCode: String, bookId: String)
 
-    // Helper to check if a language has any chapters (to decide if initial parse is needed)
-    @Query("SELECT COUNT(*) FROM chapters WHERE languageCode = :languageCode")
-    suspend fun getChapterCountForLanguage(languageCode: String): Int
+    @Query("SELECT COUNT(*) FROM chapters WHERE languageCode = :languageCode AND bookId = :bookId")
+    suspend fun getChapterCount(languageCode: String, bookId: String): Int
 
-    @Query("SELECT DISTINCT languageCode FROM chapters")
-    suspend fun getDistinctLanguageCodes(): List<String>
+    @Query("SELECT DISTINCT languageCode FROM chapters WHERE bookId = :bookId")
+    suspend fun getDownloadedLanguageCodes(bookId: String): List<String>
 
-    // Transaction to delete old and insert new chapters for a language atomically
     @Transaction
-    suspend fun replaceChaptersForLanguage(languageCode: String, newChapters: List<Chapter>) {
-        deleteChaptersByLanguage(languageCode)
+    suspend fun replaceChapters(languageCode: String, bookId: String, newChapters: List<Chapter>) {
+        deleteChaptersByLanguageAndBook(languageCode, bookId)
         if (newChapters.isNotEmpty()) {
             insertChapters(newChapters)
         }

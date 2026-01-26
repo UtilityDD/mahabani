@@ -11,9 +11,8 @@ import kotlinx.parcelize.Parcelize
 @Entity(
     tableName = "chapters",
     // A composite primary key ensures that each chapter is uniquely identified
-    // by the combination of its language and serial number. This is crucial for
-    // the 'upsert' (update or insert) operation to work correctly.
-    primaryKeys = ["languageCode", "serial"]
+    // by the combination of its language, book ID, and serial number.
+    primaryKeys = ["languageCode", "bookId", "serial"]
 )
 @Parcelize
 data class Chapter(
@@ -22,6 +21,11 @@ data class Chapter(
      * Part of the composite primary key.
      */
     val languageCode: String,
+
+    /**
+     * Unique identifier for the book this chapter belongs to.
+     */
+    val bookId: String,
 
     /**
      * The main heading or title of the chapter.

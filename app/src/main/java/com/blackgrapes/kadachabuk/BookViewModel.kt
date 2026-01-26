@@ -14,6 +14,8 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = BookRepository(application.applicationContext)
 
+    var currentBookId: String = "kada_chabuk" // Default
+
     private val _chapters = MutableLiveData<List<Chapter>>()
     val chapters: LiveData<List<Chapter>> = _chapters
 
@@ -43,29 +45,50 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
     // Add a corresponding flag for the Credits dialog
     val isFetchingCreditsForDialog = MutableLiveData<Boolean>(false)
 
+    private val _libraryBooks = MutableLiveData<List<LibraryBook>>()
+    val libraryBooks: LiveData<List<LibraryBook>> = _libraryBooks
+
     private var cachedContributors: List<Contributor>? = null
+
+    fun fetchLibraryMetadata() {
+        viewModelScope.launch {
+            // First, try to load from DB and show immediately
+            val cachedBooks = repository.getLibraryBooksFromDb()
+            if (cachedBooks.isNotEmpty()) {
+                _libraryBooks.postValue(cachedBooks)
+            }
+            
+            // Then fetch from network to update
+            val result = repository.getLibraryMetadata()
+            result.onSuccess {
+                _libraryBooks.postValue(it)
+            }
+        }
+    }
 
     fun fetchAndLoadChapters(
         languageCode: String,
         languageName: String,
-        forceDownload: Boolean = false
+        forceDownload: Boolean = false,
+        bookId: String = currentBookId
     ) {
         viewModelScope.launch {
+            this@BookViewModel.currentBookId = bookId
             // Try to load from DB first without showing a loading screen.
-            val chaptersFromDb = repository.getChaptersFromDb(languageCode)
+            val chaptersFromDb = repository.getChaptersFromDb(bookId, languageCode)
             val needsInitialLoadingScreen = chaptersFromDb.isNullOrEmpty() || forceDownload
 
             if (chaptersFromDb != null && !forceDownload) {
                 _chapters.postValue(chaptersFromDb!!) // Safe because of the null check
-                Log.d("BookViewModel", "Instantly loaded ${chaptersFromDb.size} chapters from DB for $languageCode.")
+                Log.d("BookViewModel", "Instantly loaded ${chaptersFromDb.size} chapters from DB for $bookId/$languageCode.")
                 // Now, check for updates silently in the background.
             } else {
                 // Pre-warm the contributors cache in the background on first load.
-                fetchContributors(forceRefresh = true, isSilent = true)
+                fetchContributors(bookId = bookId, forceRefresh = true, isSilent = true)
             }
 
             // Pre-warm the contributors cache in the background.
-            fetchContributors(forceRefresh = false, isSilent = true)
+            fetchContributors(bookId = bookId, forceRefresh = false, isSilent = true)
 
             if (needsInitialLoadingScreen) {
                 _isLoading.postValue(true)
@@ -73,12 +96,13 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
                 _downloadingChaptersList.postValue(emptyList()) // Clear previous list
                 _loadingStatusMessage.postValue("Preparing download...")
                 _error.postValue(null)
-                Log.d("BookViewModel", "Showing loading screen for $languageName ($languageCode). Force refresh: $forceDownload")
+                Log.d("BookViewModel", "Showing loading screen for $languageName ($languageCode) for $bookId. Force refresh: $forceDownload")
             }
 
             // This will run for both initial load and silent background updates.
             viewModelScope.launch {
                 val result = repository.getChaptersForLanguage(
+                    bookId = bookId,
                     languageCode = languageCode,
                     forceRefreshFromServer = forceDownload
                 ) { progress: DownloadProgress ->
@@ -91,10 +115,10 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
 
                 result.fold(
                     onSuccess = { loadedChapters ->
-                        Log.i("BookViewModel", "Successfully loaded/updated ${loadedChapters.size} chapters for $languageCode from repository.")
+                        Log.i("BookViewModel", "Successfully loaded/updated ${loadedChapters.size} chapters for $bookId/$languageCode from repository.")
                         if (loadedChapters.isNotEmpty()) {
                             _chapters.postValue(loadedChapters) // This will update the UI with new data if any
-                            _loadingStatusMessage.postValue("Downlaoding chapters...")
+                            _loadingStatusMessage.postValue("Downloading chapters...")
                         } else {
                             _chapters.postValue(emptyList())
                             if (_error.value == null) {
@@ -103,7 +127,7 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     },
                     onFailure = { exception ->
-                        Log.e("BookViewModel", "Failed to load chapters for $languageCode from repository", exception)
+                        Log.e("BookViewModel", "Failed to load chapters for $bookId/$languageCode from repository", exception)
                         // Only show error if we didn't already load from DB.
                         if (needsInitialLoadingScreen) {
                             val errorMessage = getApplication<Application>().getString(R.string.default_error_message)
@@ -122,19 +146,19 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun fetchAboutInfo(languageCode: String, forceRefresh: Boolean = false, isSilent: Boolean = false) {
+    fun fetchAboutInfo(languageCode: String, forceRefresh: Boolean = false, isSilent: Boolean = false, bookId: String = currentBookId) {
         viewModelScope.launch {
-            val result = repository.getAboutInfo(languageCode, forceRefresh)
+            val result = repository.getAboutInfo(bookId, languageCode, forceRefresh)
             if (!isSilent) { // Only post the value if it's not a silent fetch
                 _aboutInfo.postValue(result)
             }
         }
     }
 
-    fun fetchContributors(forceRefresh: Boolean = false, isSilent: Boolean = false) {
+    fun fetchContributors(forceRefresh: Boolean = false, isSilent: Boolean = false, bookId: String = currentBookId) {
         // This logic now mirrors fetchAboutInfo
         viewModelScope.launch {
-            val result = repository.getContributors(forceRefresh)
+            val result = repository.getContributors(bookId, forceRefresh)
             // Only post the value to trigger the observer if it's not a silent fetch.
             // The repository handles caching, so this will be fast if data exists.
             if (!isSilent) {
@@ -143,19 +167,19 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    suspend fun getDownloadedLanguageCodes(): Set<String> {
-        return repository.getDownloadedLanguageCodes()
+    suspend fun getDownloadedLanguageCodes(bookId: String = currentBookId): Set<String> {
+        return repository.getDownloadedLanguageCodes(bookId)
     }
 
-    fun deleteChaptersForLanguage(languageCode: String) {
+    fun deleteChaptersForLanguage(languageCode: String, bookId: String = currentBookId) {
         viewModelScope.launch {
-            repository.deleteChaptersForLanguage(languageCode)
+            repository.deleteChaptersForLanguage(bookId, languageCode)
             // If the deleted language is the currently displayed one, clear the list.
-            if (_chapters.value?.any { it.languageCode == languageCode } == true) {
+            if (_chapters.value?.any { it.languageCode == languageCode && it.bookId == bookId } == true) {
                 _chapters.postValue(emptyList())
                 // You might want to trigger the language selection dialog again here
                 // or load a default language. For now, we'll just clear the screen.
-                _loadingStatusMessage.postValue("Data for '$languageCode' has been deleted.")
+                _loadingStatusMessage.postValue("Data for '$languageCode' in $bookId has been deleted.")
             }
         }
     }

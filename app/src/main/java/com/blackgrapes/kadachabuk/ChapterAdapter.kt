@@ -25,9 +25,9 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
         val chapter = chapters[position]
         val context = holder.itemView.context
 
-        // Retrieve the last read serial from SharedPreferences
+        // Retrieve the last read serial from SharedPreferences for this specific book
         val prefs = context.getSharedPreferences("LastReadPrefs", Context.MODE_PRIVATE)
-        val lastReadSerial = prefs.getString("lastReadSerial", null)
+        val lastReadSerial = prefs.getString("lastReadSerial_${chapter.bookId}", null)
 
         holder.serialTextView.text = chapter.serial
         // Pass whether this is the last read chapter to the bind method
@@ -39,11 +39,12 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
             val intent = Intent(context, DetailActivity::class.java).apply {
                 // Note: EXTRA_WRITER is still passed for DetailActivity, but not displayed on the card.
                 putExtra("EXTRA_HEADING", chapter.heading)
-                putExtra("EXTRA_DATE", chapter.date ?: "N/A")
+                putExtra("EXTRA_DATE", chapter.date ?: "")
                 putExtra("EXTRA_WRITER", chapter.writer)
                 putExtra("EXTRA_DATA", chapter.dataText) // ✅ use dataText instead of data
                 putExtra("EXTRA_SERIAL", chapter.serial)
                 putExtra("EXTRA_LANGUAGE_CODE", chapter.languageCode)
+                putExtra("EXTRA_BOOK_ID", chapter.bookId) // Pass bookId
             }
             context.startActivity(intent)
         }
@@ -66,8 +67,10 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
 
         fun bind(chapter: Chapter, isLastRead: Boolean) {
             headingTextView.text = chapter.heading
-            // Remove parentheses from the date string, e.g., (dd/mm/yyyy) -> dd/mm/yyyy
-            dateTextView.text = chapter.date?.removeSurrounding("(", ")") ?: "N/A"
+            // Remove parentheses from the date string, or show blank if missing
+            val displayDate = chapter.date?.removeSurrounding("(", ")") ?: ""
+            dateTextView.text = displayDate
+            dateTextView.visibility = if (displayDate.isEmpty()) View.GONE else View.VISIBLE
 
             // --- Reading History Display Logic ---
             // Cancel any existing animations on this view before starting a new one.
@@ -79,7 +82,7 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
             val isHistoryVisible = historyPrefs.getBoolean("is_history_visible", true)
 
             if (isHistoryVisible) {
-                val historyKeyBase = "${chapter.languageCode}_${chapter.serial}"
+                val historyKeyBase = "${chapter.bookId}_${chapter.languageCode}_${chapter.serial}"
                 val count = historyPrefs.getInt("count_$historyKeyBase", 0)
                 val totalTimeMs = historyPrefs.getLong("time_$historyKeyBase", 0)
 

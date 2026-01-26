@@ -20,35 +20,19 @@ import java.net.URL
 data class DownloadProgress(
     val chapter: Chapter)
 
-// Base part of the Google Sheet publish URL (before gid)
-// Updated to new sheet: 1LCQWFkeaEA6hwGCYM14cVlh1SX0ui5_n5faHf47--tM
-private const val GOOGLE_SHEET_BASE_URL = "https://docs.google.com/spreadsheets/d/1LCQWFkeaEA6hwGCYM14cVlh1SX0ui5_n5faHf47--tM/export"
-// Suffix part of the Google Sheet publish URL (after gid)
-private const val GOOGLE_SHEET_URL_SUFFIX = "&single=true&output=csv"
-private const val ABOUT_GID = "1925993700"
-private const val CONTRIBUTORS_GID = "1786621690"
+private const val GOOGLE_SHEET_URL_SUFFIX = "&format=csv"
 private const val CONTRIBUTORS_PREFS = "ContributorsPrefs"
-
-// --- PREFERENCES KEYS ---
 private const val ABOUT_INFO_PREFS = "AboutInfoPrefs"
 private const val VERSION_INFO_PREFS = "VersionInfoPrefs"
-// GID for the 'versions' sheet
-private const val VERSIONS_GID = "1804189470"
 
-// Map language codes to their respective GID
-private val languageToGidMap = mapOf(
-    "bn" to "0",          // Bengali
-    "hi" to "1815418271", // Hindi
-    "en" to "680564409",  // English
-    "as" to "1703268117", // Assamese
-    "od" to "217039634",  // Odia
-    "tm" to "1124108521"  // Tamil
-)
+private const val LIBRARY_METADATA_URL = "https://docs.google.com/spreadsheets/d/1wZSxXRZHkgbTG3oPDJn_JbKy4m3BWELah67XcgBz6BA/export?gid=0$GOOGLE_SHEET_URL_SUFFIX"
 
 class BookRepository(private val context: Context) {
 
     // Get an instance of the DAO from the AppDatabase
-    private val chapterDao = AppDatabase.getDatabase(context).chapterDao()
+    private val database = AppDatabase.getDatabase(context)
+    private val chapterDao = database.chapterDao()
+    private val libraryBookDao = database.libraryBookDao()
 
     // --- Temporary CSV File handling for download and parse ---
     private fun getTemporaryCsvFile(languageCode: String): File {
@@ -59,46 +43,59 @@ class BookRepository(private val context: Context) {
         return File(dir, "chapters_temp_${languageCode.lowercase()}.csv")
     }
 
-    private fun getCsvUrlForLanguage(languageCode: String): URL? {
-        val gid = languageToGidMap[languageCode.lowercase()] ?: run {
-            Log.e("BookRepository", "No GID found for language code: $languageCode")
+    private suspend fun getCsvUrlForLanguage(bookId: String, languageCode: String): URL? {
+        val metadata = libraryBookDao.getBookById(bookId.lowercase()) ?: return null
+        val gid = when(languageCode.lowercase()) {
+            "bn" -> metadata.bnGid
+            "hi" -> metadata.hiGid
+            "en" -> metadata.enGid
+            "as" -> metadata.asGid
+            "od" -> metadata.odGid
+            "tm" -> metadata.tmGid
+            else -> ""
+        }
+        if (gid.isEmpty()) {
+            Log.e("BookRepository", "No GID found for book $bookId and language $languageCode")
             return null
         }
-        val urlString = "$GOOGLE_SHEET_BASE_URL?gid=$gid$GOOGLE_SHEET_URL_SUFFIX"
+        val urlString = "https://docs.google.com/spreadsheets/d/${metadata.sheetId}/export?gid=$gid$GOOGLE_SHEET_URL_SUFFIX"
         return try {
             URL(urlString)
         } catch (e: Exception) {
-            Log.e("BookRepository", "Malformed URL for $languageCode: $urlString", e)
+            Log.e("BookRepository", "Malformed URL for $bookId / $languageCode: $urlString", e)
             null
         }
     }
 
-    private fun getVersionsSheetUrl(): URL? {
-        val urlString = "$GOOGLE_SHEET_BASE_URL?gid=$VERSIONS_GID$GOOGLE_SHEET_URL_SUFFIX"
+    private suspend fun getVersionsSheetUrl(bookId: String): URL? {
+        val metadata = libraryBookDao.getBookById(bookId.lowercase()) ?: return null
+        val urlString = "https://docs.google.com/spreadsheets/d/${metadata.sheetId}/export?gid=${metadata.versionsGid}$GOOGLE_SHEET_URL_SUFFIX"
         return try {
             URL(urlString)
         } catch (e: Exception) {
-            Log.e("BookRepository", "Malformed URL for versions sheet: $urlString", e)
+            Log.e("BookRepository", "Malformed URL for $bookId versions: $urlString", e)
             null
         }
     }
 
-    private fun getAboutSheetUrl(): URL? {
-        val urlString = "$GOOGLE_SHEET_BASE_URL?gid=$ABOUT_GID$GOOGLE_SHEET_URL_SUFFIX"
+    private suspend fun getAboutSheetUrl(bookId: String): URL? {
+        val metadata = libraryBookDao.getBookById(bookId.lowercase()) ?: return null
+        val urlString = "https://docs.google.com/spreadsheets/d/${metadata.sheetId}/export?gid=${metadata.aboutGid}$GOOGLE_SHEET_URL_SUFFIX"
         return try {
             URL(urlString)
         } catch (e: Exception) {
-            Log.e("BookRepository", "Malformed URL for about sheet: $urlString", e)
+            Log.e("BookRepository", "Malformed URL for $bookId about: $urlString", e)
             null
         }
     }
 
-    private fun getContributorsSheetUrl(): URL? {
-        val urlString = "$GOOGLE_SHEET_BASE_URL?gid=$CONTRIBUTORS_GID$GOOGLE_SHEET_URL_SUFFIX"
+    private suspend fun getContributorsSheetUrl(bookId: String): URL? {
+        val metadata = libraryBookDao.getBookById(bookId.lowercase()) ?: return null
+        val urlString = "https://docs.google.com/spreadsheets/d/${metadata.sheetId}/export?gid=${metadata.contributorsGid}$GOOGLE_SHEET_URL_SUFFIX"
         return try {
             URL(urlString)
         } catch (e: Exception) {
-            Log.e("BookRepository", "Malformed URL for contributors sheet: $urlString", e)
+            Log.e("BookRepository", "Malformed URL for $bookId contributors: $urlString", e)
             null
         }
     }
@@ -107,11 +104,11 @@ class BookRepository(private val context: Context) {
      * Quickly fetches chapters for a language directly from the database without any network calls.
      * Returns null if no chapters are found.
      */
-    suspend fun getChaptersFromDb(languageCode: String): List<Chapter>? {
+    suspend fun getChaptersFromDb(bookId: String, languageCode: String): List<Chapter>? {
         return withContext(Dispatchers.IO) {
-            if (chapterDao.getChapterCountForLanguage(languageCode) > 0) {
-                Log.i("BookRepository", "DB QUICK FETCH for $languageCode. Loading from database.")
-                val chaptersFromDb = chapterDao.getChaptersByLanguage(languageCode)
+            if (chapterDao.getChapterCount(languageCode, bookId) > 0) {
+                Log.i("BookRepository", "DB QUICK FETCH for $bookId/$languageCode. Loading from database.")
+                val chaptersFromDb = chapterDao.getChaptersByLanguageAndBook(languageCode, bookId)
                 chaptersFromDb.sortedBy { it.serial.toIntOrNull() ?: Int.MAX_VALUE }
             } else {
                 null
@@ -126,6 +123,7 @@ class BookRepository(private val context: Context) {
      * updates the database, and then returns the new data.
      */
     suspend fun getChaptersForLanguage(
+        bookId: String,
         languageCode: String,
         forceRefreshFromServer: Boolean = false,
         onProgress: (DownloadProgress) -> Unit = {} // Callback for progress
@@ -133,8 +131,8 @@ class BookRepository(private val context: Context) {
         return withContext(Dispatchers.IO) {
             try {
                 val versionPrefs = context.getSharedPreferences(VERSION_INFO_PREFS, Context.MODE_PRIVATE)
-                val localVersion = versionPrefs.getString("version_$languageCode", "0.0") ?: "0.0"
-                val remoteVersionResult = getRemoteMasterVersion(languageCode)
+                val localVersion = versionPrefs.getString("version_${bookId}_$languageCode", "0.0") ?: "0.0"
+                val remoteVersionResult = getRemoteMasterVersion(bookId, languageCode)
                 val remoteVersion = remoteVersionResult.getOrNull()
 
                 // Decide if a download is needed
@@ -148,11 +146,9 @@ class BookRepository(private val context: Context) {
                     (remoteVersion.toFloatOrNull() ?: 0.0f) > (localVersion.toFloatOrNull() ?: 0.0f)
                 }
 
-                if (!needsDownload && chapterDao.getChapterCountForLanguage(languageCode) > 0) {
-                    Log.i("BookRepository", "DB CACHE HIT for $languageCode (v$localVersion). Loading from database.")
-                    // FIX: Sort the results from the database to maintain sequence.
-                    // We sort by the 'serial' field, treating it as a number.
-                    val chaptersFromDb = chapterDao.getChaptersByLanguage(languageCode)
+                if (!needsDownload && chapterDao.getChapterCount(languageCode, bookId) > 0) {
+                    Log.i("BookRepository", "DB CACHE HIT for $bookId/$languageCode (v$localVersion). Loading from database.")
+                    val chaptersFromDb = chapterDao.getChaptersByLanguageAndBook(languageCode, bookId)
                     val sortedChapters = chaptersFromDb.sortedBy { it.serial.toIntOrNull() ?: Int.MAX_VALUE }                    
                     return@withContext Result.success(sortedChapters)
                 } else {
@@ -167,7 +163,7 @@ class BookRepository(private val context: Context) {
                     }
 
                     // Download the CSV to a temporary file first
-                    val downloadResult = downloadCsvToTempFile(languageCode)
+                    val downloadResult = downloadCsvToTempFile(bookId, languageCode)
 
                     downloadResult.fold(
                         onSuccess = { tempCsvFile ->
@@ -175,6 +171,7 @@ class BookRepository(private val context: Context) {
 
                             // Parse the CSV stream from the temporary file
                             val parseResult = parseCsvStreamInternal(
+                                bookId = bookId,
                                 languageCodeForLog = languageCode,
                                 csvInputStream = FileInputStream(tempCsvFile),
                                 onProgress = onProgress
@@ -188,8 +185,8 @@ class BookRepository(private val context: Context) {
                             val chaptersToStoreInDb = parsedChaptersWithoutLang
 
                             // --- SMART UPDATE LOGIC ---
-                            // Get all existing chapters for this language from the DB to compare versions.
-                            val existingChapters = chapterDao.getChaptersByLanguage(languageCode)
+                            // Get all existing chapters for this language/book from the DB to compare versions.
+                            val existingChapters = chapterDao.getChaptersByLanguageAndBook(languageCode, bookId)
                             val existingChapterMap = existingChapters.associateBy { it.serial }
 
                             val chaptersToUpdate = chaptersToStoreInDb.filter { newChapter ->
@@ -209,10 +206,10 @@ class BookRepository(private val context: Context) {
 
                             // On successful update, save the new master version
                             if (remoteVersion != null) {
-                                versionPrefs.edit().putString("version_$languageCode", remoteVersion).apply()
+                                versionPrefs.edit().putString("version_${bookId}_$languageCode", remoteVersion).apply()
                             }
                             // Return the full, sorted list of chapters for the UI.
-                            Result.success(chapterDao.getChaptersByLanguage(languageCode).sortedBy { it.serial.toIntOrNull() ?: Int.MAX_VALUE })
+                            Result.success(chapterDao.getChaptersByLanguageAndBook(languageCode, bookId).sortedBy { it.serial.toIntOrNull() ?: Int.MAX_VALUE })
                                 },
                                 onFailure = { parsingException ->
                                     Log.e("BookRepository", "Failed to parse CSV for $languageCode after download.", parsingException)
@@ -221,11 +218,11 @@ class BookRepository(private val context: Context) {
                             )
                         },
                         onFailure = { downloadException ->
-                            Log.e("BookRepository", "Failed to download or parse CSV for $languageCode.", downloadException)
+                            Log.e("BookRepository", "Failed to download or parse CSV for $bookId/$languageCode.", downloadException)
                             // If download fails, but we have old data, return the old data to prevent a blank screen.
-                            val chaptersFromDb = chapterDao.getChaptersByLanguage(languageCode)
+                            val chaptersFromDb = chapterDao.getChaptersByLanguageAndBook(languageCode, bookId)
                             if (chaptersFromDb.isNotEmpty()) {
-                                Log.w("BookRepository", "Download failed, but returning stale data from DB to avoid blank screen.")
+                                Log.w("BookRepository", "Download failed, but returning stale data from DB for $bookId/$languageCode.")
                                 return@fold Result.success(chaptersFromDb.sortedBy { it.serial.toIntOrNull() ?: Int.MAX_VALUE })
                             }
                             Result.failure(downloadException)
@@ -242,15 +239,16 @@ class BookRepository(private val context: Context) {
     /**
      * Fetches the master version string for a given language from the 'versions' sheet.
      */
-    private suspend fun getRemoteMasterVersion(languageCode: String): Result<String> {
+    private suspend fun getRemoteMasterVersion(bookId: String, languageCode: String): Result<String> {
         return withContext(Dispatchers.IO) {
-            val url = getVersionsSheetUrl() ?: return@withContext Result.failure(Exception("Could not create URL for versions sheet"))
+            val url = getVersionsSheetUrl(bookId) ?: return@withContext Result.failure(Exception("Could not create URL for versions sheet of $bookId"))
             var connection: HttpURLConnection? = null
             try {
                 connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
-                connection.connectTimeout = 5000 // Use a shorter timeout for this small file
-                connection.readTimeout = 5000
+                connection.connectTimeout = 15000 
+                connection.readTimeout = 15000
+                connection.instanceFollowRedirects = true
                 connection.connect()
 
                 if (connection.responseCode == HttpURLConnection.HTTP_OK) {
@@ -280,9 +278,9 @@ class BookRepository(private val context: Context) {
      * Returns a Result containing the File object.
      * The caller is responsible for deleting the temp file.
      */
-    private suspend fun downloadCsvToTempFile(languageCode: String): Result<File> {
-        val downloadUrl = getCsvUrlForLanguage(languageCode)
-            ?: return Result.failure(IllegalArgumentException("Could not construct URL for language: $languageCode"))
+    private suspend fun downloadCsvToTempFile(bookId: String, languageCode: String): Result<File> {
+        val downloadUrl = getCsvUrlForLanguage(bookId, languageCode)
+            ?: return Result.failure(IllegalArgumentException("Could not construct URL for book: $bookId, language: $languageCode"))
 
         Log.d("BookRepository", "Downloading CSV for $languageCode from: $downloadUrl to a temporary file.")
         val tempFile = getTemporaryCsvFile(languageCode)
@@ -291,8 +289,8 @@ class BookRepository(private val context: Context) {
         try {
             connection = downloadUrl.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
-            connection.connectTimeout = 20000
-            connection.readTimeout = 20000
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
             connection.instanceFollowRedirects = true
             connection.connect()
 
@@ -337,6 +335,7 @@ class BookRepository(private val context: Context) {
      * Parses the given InputStream and returns a list of Chapter objects (without languageCode set).
      */
     private suspend fun parseCsvStreamInternal(
+        bookId: String,
         languageCodeForLog: String,
         csvInputStream: InputStream,
         onProgress: (DownloadProgress) -> Unit
@@ -361,6 +360,7 @@ class BookRepository(private val context: Context) {
                         if (row.size >= 6) {
                             val chapter = Chapter(
                                 languageCode = languageCodeForLog, // Now part of the object creation
+                                bookId = bookId,
                                 heading = row.getOrElse(0) { "Unknown Heading" }.trim(),
                                 date = row.getOrElse(1) { "" }.trim().let { if (it.isNotEmpty()) it else null },
                                 writer = row.getOrElse(2) { "Unknown Writer" }.trim(),
@@ -387,10 +387,10 @@ class BookRepository(private val context: Context) {
         }
     }
 
-    suspend fun getAboutInfo(languageCode: String, forceRefresh: Boolean = false): Result<String> {
+    suspend fun getAboutInfo(bookId: String, languageCode: String, forceRefresh: Boolean = false): Result<String> {
         return withContext(Dispatchers.IO) {
             val prefs = context.getSharedPreferences(ABOUT_INFO_PREFS, Context.MODE_PRIVATE)
-            val cacheKey = "about_$languageCode"
+            val cacheKey = "about_${bookId}_$languageCode"
 
             if (!forceRefresh) {
                 val cachedInfo = prefs.getString(cacheKey, null)
@@ -400,11 +400,14 @@ class BookRepository(private val context: Context) {
                 }
             }
 
-            Log.d("BookRepository", "CACHE MISS for about info: $languageCode. Fetching from network.")
+            Log.d("BookRepository", "CACHE MISS for about info: $bookId/$languageCode. Fetching from network.")
             try {
-                val url = getAboutSheetUrl() ?: return@withContext Result.failure(Exception("Could not create URL for about sheet"))
+                val url = getAboutSheetUrl(bookId) ?: return@withContext Result.failure(Exception("Could not create URL for about sheet of $bookId"))
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.instanceFollowRedirects = true
                 connection.connect()
 
                 if (connection.responseCode == HttpURLConnection.HTTP_OK) {
@@ -444,10 +447,10 @@ class BookRepository(private val context: Context) {
     // if getChaptersForLanguage is the sole entry point for fetching chapter data.
     // If you need to keep them for other purposes, you can, but they are not used
     // by the getChaptersForLanguage method above.
-    suspend fun getContributors(forceRefresh: Boolean = false): Result<List<Contributor>> {
+    suspend fun getContributors(bookId: String, forceRefresh: Boolean = false): Result<List<Contributor>> {
         return withContext(Dispatchers.IO) {
             val prefs = context.getSharedPreferences(CONTRIBUTORS_PREFS, Context.MODE_PRIVATE)
-            val cacheKey = "contributors_list"
+            val cacheKey = "contributors_${bookId}_list"
 
             if (!forceRefresh) {
                 val cachedJson = prefs.getString(cacheKey, null)
@@ -457,11 +460,14 @@ class BookRepository(private val context: Context) {
                 }
             }
 
-            Log.d("BookRepository", "CACHE MISS for contributors list. Fetching from network.")
+            Log.d("BookRepository", "CACHE MISS for contributors list. Fetching from network for $bookId.")
             try {
-                val url = getContributorsSheetUrl() ?: return@withContext Result.failure(Exception("Could not create URL for contributors sheet"))
+                val url = getContributorsSheetUrl(bookId) ?: return@withContext Result.failure(Exception("Could not create URL for contributors sheet of $bookId"))
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.instanceFollowRedirects = true
                 connection.connect()
 
                 if (connection.responseCode == HttpURLConnection.HTTP_OK) {
@@ -528,25 +534,126 @@ class BookRepository(private val context: Context) {
     /**
      * Deletes all chapters and associated preferences for a given language.
      */
-    suspend fun deleteChaptersForLanguage(languageCode: String) {
+    suspend fun deleteChaptersForLanguage(bookId: String, languageCode: String) {
         withContext(Dispatchers.IO) {
             // Delete from Room database
-            chapterDao.deleteChaptersByLanguage(languageCode)
+            chapterDao.deleteChaptersByLanguageAndBook(languageCode, bookId)
 
             // Delete version info from SharedPreferences
             val versionPrefs = context.getSharedPreferences(VERSION_INFO_PREFS, Context.MODE_PRIVATE)
-            versionPrefs.edit().remove("version_$languageCode").apply()
+            versionPrefs.edit().remove("version_${bookId}_$languageCode").apply()
 
-            Log.i("BookRepository", "Deleted all data for language: $languageCode")
+            Log.i("BookRepository", "Deleted all data for $bookId language: $languageCode")
         }
     }
 
     /**
      * Returns a set of language codes for which chapters exist in the database.
      */
-    suspend fun getDownloadedLanguageCodes(): Set<String> {
+    suspend fun getDownloadedLanguageCodes(bookId: String): Set<String> {
         return withContext(Dispatchers.IO) {
-            chapterDao.getDistinctLanguageCodes().toSet()
+            chapterDao.getDownloadedLanguageCodes(bookId).toSet()
         }
+    }
+
+    /**
+     * Fetches the dynamic library metadata from the remote spreadsheet.
+     */
+    suspend fun getLibraryMetadata(): Result<List<LibraryBook>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = URL(LIBRARY_METADATA_URL)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.instanceFollowRedirects = true
+                connection.connect()
+
+                if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                    val books = parseLibraryCsv(connection.inputStream)
+                    libraryBookDao.upsertBooks(books)
+                    Result.success(books)
+                } else {
+                    Result.failure(Exception("Failed to download library metadata: ${connection.responseCode}"))
+                }
+            } catch (e: Exception) {
+                Log.e("BookRepository", "Error fetching library metadata", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun getLibraryBooksFromDb(): List<LibraryBook> {
+        return libraryBookDao.getAllBooks()
+    }
+
+    private fun parseLibraryCsv(inputStream: InputStream): List<LibraryBook> {
+        val books = mutableListOf<LibraryBook>()
+        val langCodes = listOf("bn", "hi", "en", "as", "od", "tm")
+        
+        csvReader { skipEmptyLine = true }.open(inputStream) {
+            val rows = readAllAsSequence().toList()
+            if (rows.isEmpty()) return@open
+            
+            val header = rows[0].map { it.trim().lowercase() }
+            
+            rows.drop(1).forEach { row ->
+                if (row.isEmpty()) return@forEach
+                
+                var sl = row.getOrNull(header.indexOf("sl"))?.trim() ?: ""
+                if (sl.isEmpty()) return@forEach
+                
+                // Normalize SL: pad single digit strings with a leading zero (e.g., "1" -> "01")
+                if (sl.length == 1 && sl[0].isDigit()) {
+                    sl = "0$sl"
+                }
+                
+                val bookId = when(sl) {
+                    "01" -> "kada_chabuk"
+                    "02" -> "shaishab_kahini"
+                    else -> "book_$sl"
+                }
+
+                val sheetId = row.getOrNull(header.indexOf("sheet_id"))?.trim() ?: ""
+                val versionsGid = row.getOrNull(header.indexOf("versions_gid"))?.trim() ?: ""
+                val aboutGid = row.getOrNull(header.indexOf("about_gid"))?.trim() ?: "1925993700"
+                val contributorsGid = row.getOrNull(header.indexOf("contributors_gid"))?.trim() ?: "1786621690"
+
+                books.add(LibraryBook(
+                    bookId = bookId,
+                    sl = sl,
+                    sheetId = sheetId,
+                    versionsGid = versionsGid,
+                    aboutGid = aboutGid,
+                    contributorsGid = contributorsGid,
+                    bnGid = row.getOrNull(header.indexOf("bn_gid"))?.trim() ?: "",
+                    hiGid = row.getOrNull(header.indexOf("hi_gid"))?.trim() ?: "",
+                    enGid = row.getOrNull(header.indexOf("en_gid"))?.trim() ?: "",
+                    asGid = row.getOrNull(header.indexOf("as_gid"))?.trim() ?: "",
+                    odGid = row.getOrNull(header.indexOf("od_gid"))?.trim() ?: "",
+                    tmGid = row.getOrNull(header.indexOf("tm_gid"))?.trim() ?: "",
+                    bnName = row.getOrNull(header.indexOf("bn_name"))?.trim() ?: "",
+                    hiName = row.getOrNull(header.indexOf("hi_name"))?.trim() ?: "",
+                    enName = row.getOrNull(header.indexOf("en_name"))?.trim() ?: "",
+                    asName = row.getOrNull(header.indexOf("as_name"))?.trim() ?: "",
+                    odName = row.getOrNull(header.indexOf("od_name"))?.trim() ?: "",
+                    tmName = row.getOrNull(header.indexOf("tm_name"))?.trim() ?: "",
+                    bnSubName = row.getOrNull(header.indexOf("bn_subname"))?.trim() ?: "",
+                    hiSubName = row.getOrNull(header.indexOf("hi_subname"))?.trim() ?: "",
+                    enSubName = row.getOrNull(header.indexOf("en_subname"))?.trim() ?: "",
+                    asSubName = row.getOrNull(header.indexOf("as_subname"))?.trim() ?: "",
+                    odSubName = row.getOrNull(header.indexOf("od_subname"))?.trim() ?: "",
+                    tmSubName = row.getOrNull(header.indexOf("tm_subname"))?.trim() ?: "",
+                    bnYear = row.getOrNull(header.indexOf("bn_year"))?.trim() ?: "",
+                    hiYear = row.getOrNull(header.indexOf("hi_year"))?.trim() ?: "",
+                    enYear = row.getOrNull(header.indexOf("en_year"))?.trim() ?: "",
+                    asYear = row.getOrNull(header.indexOf("as_year"))?.trim() ?: "",
+                    odYear = row.getOrNull(header.indexOf("od_year"))?.trim() ?: "",
+                    tmYear = row.getOrNull(header.indexOf("tm_year"))?.trim() ?: ""
+                ))
+            }
+        }
+        return books
     }
 }

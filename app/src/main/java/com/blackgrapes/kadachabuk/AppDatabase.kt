@@ -6,10 +6,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.blackgrapes.kadachabuk.Chapter
 
-@Database(entities = [Chapter::class], version = 3, exportSchema = false) // Incremented version due to schema change
+@Database(entities = [Chapter::class, LibraryBook::class], version = 5, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun chapterDao(): ChapterDao
+    abstract fun libraryBookDao(): LibraryBookDao
 
     companion object {
         @Volatile // Ensures visibility of this instance to all threads

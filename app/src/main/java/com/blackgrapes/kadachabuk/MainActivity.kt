@@ -112,6 +112,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var languageCodes: Array<String>
     private lateinit var languageNames: Array<String>
 
+    private var currentBookId: String = "kada_chabuk"
+
     private var optionsMenu: Menu? = null
 
     private var searchJob: Job? = null
@@ -136,9 +138,15 @@ class MainActivity : AppCompatActivity() {
     // <string name="loading_status_default">Loading...</string>
     // <string name="loading_status_processing">Processing chapters...</string>
     // <string name="loading_status_preparing">Preparing data...</string>
+    // <string name="loading_status_about">Loading about info...</string>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Get bookId from Intent
+        currentBookId = intent.getStringExtra("selected_book_id") ?: "kada_chabuk"
+        bookViewModel.currentBookId = currentBookId
+
         applySavedTheme()
         setContentView(R.layout.activity_main)
 
@@ -149,10 +157,20 @@ class MainActivity : AppCompatActivity() {
 
         val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)
-        supportActionBar?.title = ""
+        
+        // Immediate Toolbar Visibility Logic
+        val toolbarIcon: ImageView = findViewById(R.id.toolbar_icon)
+        if (currentBookId == "kada_chabuk") {
+            toolbarIcon.visibility = View.VISIBLE
+            supportActionBar?.title = ""
+        } else {
+            toolbarIcon.visibility = View.GONE
+            supportActionBar?.title = "" // Will be set by metadata observer
+        }
 
         initializeViews()
-
+        setupRetryButton() // Ensure retry button is initialized
+        
         // Handle window insets to prevent overlap with the status bar
         handleWindowInsets()
 
@@ -161,6 +179,34 @@ class MainActivity : AppCompatActivity() {
         checkIfLanguageNotSet()
         setupFab()
         observeViewModel()
+
+        // Dynamic Toolbar Title Logic
+        bookViewModel.libraryBooks.observe(this) { books ->
+            val book = books.find { it.bookId == currentBookId } ?: return@observe
+            val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+            val lang = sharedPreferences.getString("selected_language_code", "bn") ?: "bn"
+            
+            val toolbarIcon: ImageView = findViewById(R.id.toolbar_icon)
+            if (currentBookId == "kada_chabuk") {
+                toolbarIcon.visibility = View.VISIBLE
+                supportActionBar?.title = ""
+            } else {
+                toolbarIcon.visibility = View.GONE
+                val bookName = book.getLocalizedName(lang)
+                if (bookName.isNotEmpty()) {
+                    supportActionBar?.title = bookName
+                    
+                    // Match title color to the icon tint (?attr/colorOnPrimary)
+                    val typedValue = TypedValue()
+                    theme.resolveAttribute(com.google.android.material.R.attr.colorOnPrimary, typedValue, true)
+                    val titleColor = typedValue.data
+                    toolbar.setTitleTextColor(titleColor)
+                }
+            }
+        }
+        
+        // Ensure we actually fetch the metadata (from DB first, then network)
+        bookViewModel.fetchLibraryMetadata()
 
         // Initialize and check for app updates
         appUpdateManager = AppUpdateManagerFactory.create(this)
@@ -305,7 +351,7 @@ class MainActivity : AppCompatActivity() {
             val savedLangCode = sharedPreferences.getString("selected_language_code", null)
             if (savedLangCode != null) {
                 val langIndex = languageCodes.indexOf(savedLangCode)
-                bookViewModel.fetchAndLoadChapters(savedLangCode, languageNames[langIndex], forceDownload = true)
+                bookViewModel.fetchAndLoadChapters(savedLangCode, languageNames[langIndex], forceDownload = true, bookId = currentBookId)
             }
         }
     }
@@ -333,7 +379,7 @@ class MainActivity : AppCompatActivity() {
     private fun filterBookmarkedChapters() {
         val bookmarkPrefs = getSharedPreferences("BookmarkPrefs", Context.MODE_PRIVATE)
         val bookmarkedChapters = originalChapters.filter { chapter ->
-            val key = "bookmark_${chapter.languageCode}_${chapter.serial}"
+            val key = "bookmark_${chapter.bookId}_${chapter.languageCode}_${chapter.serial}"
             bookmarkPrefs.getBoolean(key, false)
         }
         chapterAdapter.updateChapters(bookmarkedChapters)
@@ -357,7 +403,7 @@ class MainActivity : AppCompatActivity() {
             // If a language is saved but no chapters are loaded (e.g., app was closed during initial load),
             // automatically resume fetching the chapters without showing a dialog.
             val langIndex = languageCodes.indexOf(savedLangCode)
-            if (langIndex != -1) bookViewModel.fetchAndLoadChapters(savedLangCode, languageNames[langIndex], forceDownload = false)
+            if (langIndex != -1) bookViewModel.fetchAndLoadChapters(savedLangCode, languageNames[langIndex], forceDownload = false, bookId = currentBookId)
         }
     }
 
@@ -381,7 +427,7 @@ class MainActivity : AppCompatActivity() {
 
         // We need to know which languages are downloaded to show the icons.
         uiScope.launch {
-            val downloadedCodes = bookViewModel.getDownloadedLanguageCodes()
+            val downloadedCodes = bookViewModel.getDownloadedLanguageCodes(currentBookId)
             val languageAdapter = LanguageAdapter(
                 languages = languageNames.zip(languageCodes).toList(),
                 downloadedLanguageCodes = downloadedCodes,
@@ -390,13 +436,13 @@ class MainActivity : AppCompatActivity() {
                     // If the language is already downloaded, switch to it immediately.
                     if (downloadedCodes.contains(langCode)) {
                         saveLanguagePreference(langCode)
-                        bookViewModel.fetchAndLoadChapters(langCode, langName, forceDownload = false)
+                        bookViewModel.fetchAndLoadChapters(langCode, langName, forceDownload = false, bookId = currentBookId)
                         dialog.dismiss()
                     } else {
                         // If not downloaded, show a confirmation dialog before proceeding.
                         showDownloadConfirmationDialog(langName) {
                             saveLanguagePreference(langCode)
-                            bookViewModel.fetchAndLoadChapters(langCode, langName, forceDownload = false)
+                            bookViewModel.fetchAndLoadChapters(langCode, langName, forceDownload = false, bookId = currentBookId)
                             dialog.dismiss()
                         }
                     }
@@ -456,7 +502,7 @@ class MainActivity : AppCompatActivity() {
             .setMessage("This will remove all downloaded chapters for this language to free up space. You can download them again later.")
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Delete") { _, _ ->
-                bookViewModel.deleteChaptersForLanguage(langCode)
+                bookViewModel.deleteChaptersForLanguage(langCode, currentBookId)
                 onConfirm() // Execute the callback to dismiss the other dialog
             }
             .show()
@@ -929,8 +975,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun reorderChaptersWithLastRead(chapters: List<Chapter>): List<Chapter> {
         val prefs = getSharedPreferences(LAST_READ_PREFS, Context.MODE_PRIVATE)
-        val lastReadSerial = prefs.getString(KEY_LAST_READ_SERIAL, null)
-        val lastReadLang = prefs.getString(KEY_LAST_READ_LANG, null)
+        val lastReadSerial = prefs.getString("${KEY_LAST_READ_SERIAL}_$currentBookId", null)
+        val lastReadLang = prefs.getString("${KEY_LAST_READ_LANG}_$currentBookId", null)
 
         if (lastReadSerial == null || lastReadLang == null) {
             return chapters // No last read chapter, return original order
@@ -962,23 +1008,23 @@ class MainActivity : AppCompatActivity() {
                         if (showAbout) {
                             val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
                             val savedLangCode = sharedPreferences.getString("selected_language_code", null)
-                            savedLangCode?.let { langCode -> bookViewModel.fetchAboutInfo(langCode, forceRefresh = false) }
+                            savedLangCode?.let { langCode -> bookViewModel.fetchAboutInfo(langCode, forceRefresh = false, bookId = currentBookId) }
                         }
                         bookViewModel.hasShownInitialAboutDialog = true
 
                         // Silently pre-fetch the "About" info in the background for the next time.
                         val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
                         val savedLangCode = sharedPreferences.getString("selected_language_code", null)
-                        savedLangCode?.let { langCode -> bookViewModel.fetchAboutInfo(langCode, forceRefresh = true, isSilent = true) }
+                        savedLangCode?.let { langCode -> bookViewModel.fetchAboutInfo(langCode, forceRefresh = true, isSilent = true, bookId = currentBookId) }
 
                         // Also, silently pre-fetch the "Credits" info in the background.
-                        bookViewModel.fetchContributors(forceRefresh = true, isSilent = true)
+                        bookViewModel.fetchContributors(forceRefresh = true, isSilent = true, bookId = currentBookId)
 
                     }
 
                     val reorderedChapters = reorderChaptersWithLastRead(it)
                     val prefs = getSharedPreferences(LAST_READ_PREFS, Context.MODE_PRIVATE)
-                    val lastReadSerial = prefs.getString(KEY_LAST_READ_SERIAL, null)
+                    val lastReadSerial = prefs.getString("${KEY_LAST_READ_SERIAL}_$currentBookId", null)
 
                     chapterAdapter.updateChapters(reorderedChapters, lastReadSerial)
                     hideNoResultsView()
