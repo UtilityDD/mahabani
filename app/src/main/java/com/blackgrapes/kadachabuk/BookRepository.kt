@@ -572,9 +572,30 @@ class BookRepository(private val context: Context) {
     }
 
     suspend fun markChapterAsRead(languageCode: String, bookId: String, serial: String) {
-        withContext(Dispatchers.IO) {
-            chapterDao.updateReadStatus(languageCode, bookId, serial, true)
+        val normalizedSerial = if (serial.isEmpty()) "" else try {
+            serial.toInt().toString().padStart(2, '0')
+        } catch (e: Exception) {
+            serial
         }
+        chapterDao.updateReadStatus(languageCode, bookId, normalizedSerial, true)
+    }
+    
+    suspend fun getNextChapter(languageCode: String, bookId: String, currentSerial: String): Chapter? {
+        val normalizedSerial = if (currentSerial.isEmpty()) "00" else try {
+            currentSerial.toInt().toString().padStart(2, '0')
+        } catch (e: Exception) {
+            currentSerial
+        }
+        return chapterDao.getNextChapter(languageCode, bookId, normalizedSerial)
+    }
+
+    suspend fun getPreviousChapter(languageCode: String, bookId: String, currentSerial: String): Chapter? {
+        val normalizedSerial = if (currentSerial.isEmpty()) "00" else try {
+            currentSerial.toInt().toString().padStart(2, '0')
+        } catch (e: Exception) {
+            currentSerial
+        }
+        return chapterDao.getPreviousChapter(languageCode, bookId, normalizedSerial)
     }
 
     suspend fun getBookProgress(languageCode: String, bookId: String): Int {

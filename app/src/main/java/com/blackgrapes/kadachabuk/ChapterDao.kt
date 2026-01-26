@@ -42,4 +42,12 @@ interface ChapterDao {
             insertChapters(newChapters)
         }
     }
+
+    // Fetch the update chapter (Next)
+    @Query("SELECT * FROM chapters WHERE languageCode = :languageCode AND bookId = :bookId AND CAST(serial AS INTEGER) > CAST(:currentSerial AS INTEGER) ORDER BY CAST(serial AS INTEGER) ASC LIMIT 1")
+    suspend fun getNextChapter(languageCode: String, bookId: String, currentSerial: String): Chapter?
+
+    // Fetch the previous chapter (Previous)
+    @Query("SELECT * FROM chapters WHERE languageCode = :languageCode AND bookId = :bookId AND CAST(serial AS INTEGER) < CAST(:currentSerial AS INTEGER) ORDER BY CAST(serial AS INTEGER) DESC LIMIT 1")
+    suspend fun getPreviousChapter(languageCode: String, bookId: String, currentSerial: String): Chapter?
 }

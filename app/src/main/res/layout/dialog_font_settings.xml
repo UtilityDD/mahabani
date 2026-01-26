@@ -53,7 +53,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginHorizontal="12dp"
-                android:background="@drawable/theme_selector_system"
+                android:background="@drawable/theme_selector_light"
                 android:clickable="true"
                 android:focusable="true" />
 

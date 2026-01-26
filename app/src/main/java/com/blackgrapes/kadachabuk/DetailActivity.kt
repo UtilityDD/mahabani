@@ -21,6 +21,7 @@ import android.view.inputmethod.InputMethodManager
 import android.view.WindowInsetsController
 import android.view.Menu
 import android.view.MenuItem
+import android.view.GestureDetector
 import android.widget.ImageButton
 import android.widget.ImageView // <-- IMPORT THIS
 import android.util.TypedValue
@@ -42,6 +43,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import androidx.core.view.updatePadding
 import androidx.core.text.HtmlCompat
@@ -63,7 +65,7 @@ private const val DEFAULT_FONT_SIZE = 18f
 private const val BOOKMARK_PREFS = "BookmarkPrefs"
 private const val READER_THEME_PREFS = "ReaderThemePrefs"
 private const val KEY_READER_THEME = "readerTheme"
-private const val THEME_SYSTEM = "system"
+private const val THEME_LIGHT = "light"
 private const val THEME_SEPIA = "sepia"
 private const val THEME_MIDNIGHT = "midnight"
 private const val SCROLL_PREFS = "ScrollPositions"
@@ -115,11 +117,16 @@ class DetailActivity : AppCompatActivity() {
         // Add all your header image drawables here
     )
 
+    private lateinit var gestureDetector: GestureDetector
+    private lateinit var bookRepository: BookRepository // Access repository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_detail)
         // Enable the action bar menu
         enableActionBarMenu()
+        
+        bookRepository = BookRepository(this) // Initialize repo
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
@@ -132,7 +139,55 @@ class DetailActivity : AppCompatActivity() {
         }
 
         scrollView = findViewById(R.id.scrollView)
-        imageViewHeader = findViewById(R.id.imageViewHeader) // <-- INITIALIZE ImageView
+        imageViewHeader = findViewById(R.id.imageViewHeader)
+        
+        // Initialize Gesture Detector for Swipe Navigation
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            private val SWIPE_THRESHOLD = 80 // Reduced slightly for better sensitivity
+            private val SWIPE_VELOCITY_THRESHOLD = 80
+
+            override fun onDown(e: MotionEvent): Boolean {
+                return true // CRITICAL: Must return true to detect further gestures
+            }
+
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                if (e1 == null) return false
+                val diffY = e2.y - e1.y
+                val diffX = e2.x - e1.x
+                Log.d("DetailActivity", "onFling detected: diffX=$diffX, diffY=$diffY")
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
+                        if (diffX > 0) {
+                            Log.d("DetailActivity", "Swipe Right -> Previous")
+                            onSwipeRight()
+                        } else {
+                            Log.d("DetailActivity", "Swipe Left -> Next")
+                            onSwipeLeft()
+                        }
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+        // Attach touch listener to ScrollView to detect swipes
+        scrollView.setOnTouchListener { v, event ->
+            if (gestureDetector.onTouchEvent(event)) {
+                return@setOnTouchListener true
+            }
+            // Add a touch listener to cancel animations on user interaction (moved from separate listener)
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                scrollAnimator?.cancel()
+            }
+            // Return false to allow ScrollView to handle scrolling
+            false 
+        }
 
         val textViewHeading: TextView = findViewById(R.id.textViewHeading)
         val textViewDate: TextView = findViewById(R.id.textViewDate)
@@ -842,31 +897,34 @@ class DetailActivity : AppCompatActivity() {
         }
 
         // Theme selection
-        val themeSystem = dialog.findViewById<View>(R.id.theme_system)
+        val themeLight = dialog.findViewById<View>(R.id.theme_system)
         val themeSepia = dialog.findViewById<View>(R.id.theme_sepia)
         val themeMidnight = dialog.findViewById<View>(R.id.theme_midnight)
         
+        // Update background to light theme selector
+        themeLight.setBackgroundResource(R.drawable.theme_selector_light)
+
         val prefs = getSharedPreferences(READER_THEME_PREFS, Context.MODE_PRIVATE)
         val currentTheme = prefs.getString(KEY_READER_THEME, THEME_SEPIA) ?: THEME_SEPIA
         
         // Set initial selected state
-        themeSystem.isSelected = currentTheme == THEME_SYSTEM
+        themeLight.isSelected = currentTheme == THEME_LIGHT
         themeSepia.isSelected = currentTheme == THEME_SEPIA
         themeMidnight.isSelected = currentTheme == THEME_MIDNIGHT
         
-        themeSystem.setOnClickListener {
-            themeSystem.isSelected = true
+        themeLight.setOnClickListener {
+            themeLight.isSelected = true
             themeSepia.isSelected = false
             themeMidnight.isSelected = false
             with(prefs.edit()) {
-                putString(KEY_READER_THEME, THEME_SYSTEM)
+                putString(KEY_READER_THEME, THEME_LIGHT)
                 apply()
             }
             applyReaderTheme()
         }
         
         themeSepia.setOnClickListener {
-            themeSystem.isSelected = false
+            themeLight.isSelected = false
             themeSepia.isSelected = true
             themeMidnight.isSelected = false
             with(prefs.edit()) {
@@ -877,7 +935,7 @@ class DetailActivity : AppCompatActivity() {
         }
         
         themeMidnight.setOnClickListener {
-            themeSystem.isSelected = false
+            themeLight.isSelected = false
             themeSepia.isSelected = false
             themeMidnight.isSelected = true
             with(prefs.edit()) {
@@ -916,7 +974,8 @@ class DetailActivity : AppCompatActivity() {
         val targetMode = when (themeStr) {
             THEME_MIDNIGHT -> AppCompatDelegate.MODE_NIGHT_YES
             THEME_SEPIA -> AppCompatDelegate.MODE_NIGHT_NO
-            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            THEME_LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            else -> AppCompatDelegate.MODE_NIGHT_NO
         }
         
         if (AppCompatDelegate.getDefaultNightMode() != targetMode) {
@@ -933,23 +992,21 @@ class DetailActivity : AppCompatActivity() {
                 textViewData.setTextColor(ContextCompat.getColor(this, R.color.reader_midnight_text))
             }
             else -> {
-                // THEME_SYSTEM - use default app theme colors
-                // Note: When switching to System theme, the activity will recreate via AppCompatDelegate.setDefaultNightMode
-                // so we just need to set reasonable defaults here that will be replaced on recreation
+                // THEME_LIGHT/DEFAULT - use default app theme colors (Light Mode)
                 val typedValue = TypedValue()
                 
                 // Use colorSurface for background instead of colorBackground for better compatibility
                 if (theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)) {
                     scrollView.setBackgroundColor(typedValue.data)
                 } else {
-                    // Fallback to a safe default
+                    // Fallback to a safe light default
                     scrollView.setBackgroundColor(ContextCompat.getColor(this, android.R.color.background_light))
                 }
                 
                 if (theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, typedValue, true)) {
                     textViewData.setTextColor(typedValue.data)
                 } else {
-                    // Fallback to ensure text is visible
+                    // Fallback to ensure text is visible (Black on white)
                     textViewData.setTextColor(ContextCompat.getColor(this, android.R.color.black))
                 }
             }
@@ -1079,6 +1136,70 @@ class DetailActivity : AppCompatActivity() {
         if (shareIntent.resolveActivity(packageManager) != null) {
             startActivity(shareIntent)
         }
+    }
+
+    private fun onSwipeLeft() {
+        // Swipe Left -> Go to Next Chapter
+        navigateToNextChapter()
+    }
+
+    private fun onSwipeRight() {
+        // Swipe Right -> Go to Previous Chapter
+        navigateToPreviousChapter()
+    }
+
+    private fun navigateToNextChapter() {
+        if (!::chapterSerial.isInitialized) return
+        
+        CoroutineScope(Dispatchers.Main).launch {
+            val nextChapter = withContext(Dispatchers.IO) {
+                bookRepository.getNextChapter(languageCode, bookId, chapterSerial)
+            }
+            
+            if (nextChapter != null) {
+                openChapter(nextChapter, true)
+            } else {
+                Toast.makeText(this@DetailActivity, "No more chapters", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun navigateToPreviousChapter() {
+        if (!::chapterSerial.isInitialized) return
+
+        CoroutineScope(Dispatchers.Main).launch {
+            val prevChapter = withContext(Dispatchers.IO) {
+                bookRepository.getPreviousChapter(languageCode, bookId, chapterSerial)
+            }
+            
+            if (prevChapter != null) {
+                openChapter(prevChapter, false)
+            } else {
+                Toast.makeText(this@DetailActivity, "This is the first chapter", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun openChapter(chapter: Chapter, isNext: Boolean) {
+        val intent = Intent(this, DetailActivity::class.java).apply {
+            putExtra("EXTRA_HEADING", chapter.heading)
+            putExtra("EXTRA_DATE", chapter.date)
+            putExtra("EXTRA_DATA", chapter.dataText)
+            putExtra("EXTRA_WRITER", chapter.writer)
+            putExtra("EXTRA_SERIAL", chapter.serial)
+            putExtra("EXTRA_LANGUAGE_CODE", languageCode)
+            putExtra("EXTRA_BOOK_ID", bookId)
+        }
+        
+        startActivity(intent)
+        
+        if (isNext) {
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+        } else {
+            overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+        }
+        
+        finish() // Close current chapter to keep back stack clean
     }
 
 }

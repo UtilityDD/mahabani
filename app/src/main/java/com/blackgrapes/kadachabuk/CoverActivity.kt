@@ -42,7 +42,7 @@ import com.blackgrapes.kadachabuk.WindowUtils
 
 private const val READER_THEME_PREFS = "ReaderThemePrefs"
 private const val KEY_READER_THEME = "readerTheme"
-private const val THEME_SYSTEM = "system"
+private const val THEME_LIGHT = "light"
 private const val THEME_SEPIA = "sepia"
 private const val THEME_MIDNIGHT = "midnight"
 
@@ -718,7 +718,8 @@ class CoverActivity : AppCompatActivity() {
         val targetMode = when (themeStr) {
             THEME_MIDNIGHT -> AppCompatDelegate.MODE_NIGHT_YES
             THEME_SEPIA -> AppCompatDelegate.MODE_NIGHT_NO
-            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            THEME_LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            else -> AppCompatDelegate.MODE_NIGHT_NO
         }
         
         if (AppCompatDelegate.getDefaultNightMode() != targetMode) {

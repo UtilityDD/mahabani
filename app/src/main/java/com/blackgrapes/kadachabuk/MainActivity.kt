@@ -87,7 +87,7 @@ private const val KEY_LAST_READ_LANG = "lastReadLang"
 
 private const val READER_THEME_PREFS = "ReaderThemePrefs"
 private const val KEY_READER_THEME = "readerTheme"
-private const val THEME_SYSTEM = "system"
+private const val THEME_LIGHT = "light"
 private const val THEME_SEPIA = "sepia"
 private const val THEME_MIDNIGHT = "midnight"
 
@@ -1305,27 +1305,30 @@ class MainActivity : AppCompatActivity() {
         dialog.window?.let { WindowUtils.setStatusBarIconColor(it) }
 
         // Theme selection
-        val themeSystem = dialog.findViewById<View>(R.id.theme_system)
+        val themeLight = dialog.findViewById<View>(R.id.theme_system) // Keeping ID for now, will update XML later
         val themeSepia = dialog.findViewById<View>(R.id.theme_sepia)
         val themeMidnight = dialog.findViewById<View>(R.id.theme_midnight)
         
+        // Update background to light theme selector
+        themeLight.setBackgroundResource(R.drawable.theme_selector_light)
+
         val prefs = getSharedPreferences(READER_THEME_PREFS, Context.MODE_PRIVATE)
         val currentTheme = prefs.getString(KEY_READER_THEME, THEME_SEPIA) ?: THEME_SEPIA
         
-        themeSystem.isSelected = currentTheme == THEME_SYSTEM
+        themeLight.isSelected = currentTheme == THEME_LIGHT
         themeSepia.isSelected = currentTheme == THEME_SEPIA
         themeMidnight.isSelected = currentTheme == THEME_MIDNIGHT
         
-        themeSystem.setOnClickListener {
-            themeSystem.isSelected = true
+        themeLight.setOnClickListener {
+            themeLight.isSelected = true
             themeSepia.isSelected = false
             themeMidnight.isSelected = false
-            prefs.edit().putString(KEY_READER_THEME, THEME_SYSTEM).apply()
+            prefs.edit().putString(KEY_READER_THEME, THEME_LIGHT).apply()
             applyReaderTheme()
         }
         
         themeSepia.setOnClickListener {
-            themeSystem.isSelected = false
+            themeLight.isSelected = false
             themeSepia.isSelected = true
             themeMidnight.isSelected = false
             prefs.edit().putString(KEY_READER_THEME, THEME_SEPIA).apply()
@@ -1333,7 +1336,7 @@ class MainActivity : AppCompatActivity() {
         }
         
         themeMidnight.setOnClickListener {
-            themeSystem.isSelected = false
+            themeLight.isSelected = false
             themeSepia.isSelected = false
             themeMidnight.isSelected = true
             prefs.edit().putString(KEY_READER_THEME, THEME_MIDNIGHT).apply()
@@ -1351,7 +1354,8 @@ class MainActivity : AppCompatActivity() {
         val targetMode = when (themeStr) {
             THEME_MIDNIGHT -> AppCompatDelegate.MODE_NIGHT_YES
             THEME_SEPIA -> AppCompatDelegate.MODE_NIGHT_NO
-            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            THEME_LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            else -> AppCompatDelegate.MODE_NIGHT_NO
         }
         
         if (AppCompatDelegate.getDefaultNightMode() != targetMode) {
@@ -1368,9 +1372,16 @@ class MainActivity : AppCompatActivity() {
                 mainLayout.setBackgroundColor(ContextCompat.getColor(this, R.color.reader_midnight_bg))
             }
             else -> {
+                // THEME_SYSTEM - use default app theme colors
                 val typedValue = TypedValue()
-                this.theme.resolveAttribute(android.R.attr.colorBackground, typedValue, true)
-                mainLayout.setBackgroundColor(typedValue.data)
+                
+                // Use colorSurface for background instead of colorBackground for better compatibility
+                if (theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)) {
+                    mainLayout.setBackgroundColor(typedValue.data)
+                } else {
+                    // Fallback to a safe default
+                    mainLayout.setBackgroundColor(ContextCompat.getColor(this, android.R.color.background_light))
+                }
             }
         }
     }
