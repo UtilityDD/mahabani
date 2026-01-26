@@ -22,6 +22,8 @@ import android.view.WindowInsetsController
 import android.view.Menu
 import android.view.MenuItem
 import android.view.GestureDetector
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import android.widget.ImageButton
 import android.widget.ImageView // <-- IMPORT THIS
 import android.util.TypedValue
@@ -85,6 +87,11 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var fontSettingsButton: ImageButton
     private lateinit var backButton: ImageButton
     private lateinit var bookmarkButton: ImageButton
+    private lateinit var buttonTts: ImageButton
+    private var textToSpeech: TextToSpeech? = null
+    private var isTtsPlaying = false
+    private var isTtsInitialized = false
+    private var currentTtsOffset = 0
     private lateinit var chapterSerial: String
     private lateinit var languageCode: String
     private lateinit var scrollToTopButton: ImageButton
@@ -122,6 +129,16 @@ class DetailActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // --- CRITICAL: Extract Intent Data First ---
+        chapterHeading = intent.getStringExtra("EXTRA_HEADING")
+        chapterDate = intent.getStringExtra("EXTRA_DATE")
+        val dataContent = intent.getStringExtra("EXTRA_DATA")
+        val writer = intent.getStringExtra("EXTRA_WRITER")
+        chapterSerial = intent.getStringExtra("EXTRA_SERIAL") ?: ""
+        languageCode = intent.getStringExtra("EXTRA_LANGUAGE_CODE") ?: ""
+        bookId = intent.getStringExtra("EXTRA_BOOK_ID") ?: "kada_chabuk"
+
         setContentView(R.layout.activity_detail)
         // Enable the action bar menu
         enableActionBarMenu()
@@ -134,12 +151,60 @@ class DetailActivity : AppCompatActivity() {
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             fontSettingsButton.updatePadding(top = systemBars.top)
             bookmarkButton.updatePadding(top = systemBars.top)
+            buttonTts.updatePadding(top = systemBars.top)
             backButton.updatePadding(top = systemBars.top)
             insets
         }
 
         scrollView = findViewById(R.id.scrollView)
         imageViewHeader = findViewById(R.id.imageViewHeader)
+        
+        buttonTts = findViewById(R.id.button_tts)
+
+        // Initialize TextToSpeech
+        textToSpeech = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val locale = when (languageCode) {
+                    "bn" -> Locale("bn", "IN")
+                    "hi" -> Locale("hi", "IN")
+                    else -> Locale.US
+                }
+                textToSpeech?.setLanguage(locale)
+                textToSpeech?.setSpeechRate(0.9f) // More natural, slightly slower pace
+                
+                // Try to find a male voice for the current locale
+                val voices = textToSpeech?.voices
+                if (voices != null) {
+                    val maleVoice = voices.find { voice ->
+                        voice.locale.language == locale.language && 
+                        voice.locale.country == locale.country &&
+                        (voice.name.lowercase().contains("male") || 
+                         voice.name.lowercase().contains("-x-") && voice.name.lowercase().contains("-a-") || // Many Google male voices have 'a' or 'd'
+                         voice.name.lowercase().contains("-d-")) 
+                    }
+                    if (maleVoice != null) {
+                        textToSpeech?.voice = maleVoice
+                        Log.d("TTS", "Selected male voice: ${maleVoice.name}")
+                    }
+                }
+                isTtsInitialized = true
+                Log.d("TTS", "Initialization success for $languageCode")
+            } else {
+                Log.e("TTS", "Initialization failed")
+            }
+        }
+
+        buttonTts.setOnClickListener {
+            if (!isTtsInitialized) {
+                Toast.makeText(this, "Voice engine is warming up, please wait...", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (isTtsPlaying) {
+                pauseTts()
+            } else {
+                startTts()
+            }
+        }
         
         // Initialize Gesture Detector for Swipe Navigation
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -204,13 +269,7 @@ class DetailActivity : AppCompatActivity() {
         customActionMenu = findViewById(R.id.custom_action_menu)
 
 
-        chapterHeading = intent.getStringExtra("EXTRA_HEADING")
-        chapterDate = intent.getStringExtra("EXTRA_DATE")
-        val dataContent = intent.getStringExtra("EXTRA_DATA")
-        val writer = intent.getStringExtra("EXTRA_WRITER")
-        chapterSerial = intent.getStringExtra("EXTRA_SERIAL") ?: ""
-        languageCode = intent.getStringExtra("EXTRA_LANGUAGE_CODE") ?: ""
-        bookId = intent.getStringExtra("EXTRA_BOOK_ID") ?: "kada_chabuk"
+        // Intent data extraction was moved to the very top of onCreate to fix TTS race condition
 
         // Update read status in background
         if (chapterSerial.isNotEmpty() && languageCode.isNotEmpty()) {
@@ -229,6 +288,15 @@ class DetailActivity : AppCompatActivity() {
         // Pre-process content to handle custom image tags
         val processedContent = processCustomImageTags(dataContent ?: "")
 
+        // Resolve current theme for caption color contrast
+        val themePrefs = getSharedPreferences(READER_THEME_PREFS, Context.MODE_PRIVATE)
+        val currentReaderTheme = themePrefs.getString(KEY_READER_THEME, THEME_SEPIA) ?: THEME_SEPIA
+        val captionColor = if (currentReaderTheme == THEME_MIDNIGHT) {
+            android.graphics.Color.LTGRAY
+        } else {
+            android.graphics.Color.DKGRAY
+        }
+
         // 1. Create a Markwon instance (with table, link, image, and html support)
         val markwon = Markwon.builder(this)
             .usePlugin(TablePlugin.create(this))
@@ -240,7 +308,7 @@ class DetailActivity : AppCompatActivity() {
                              android.text.style.AlignmentSpan.Standard(android.text.Layout.Alignment.ALIGN_CENTER),
                              android.text.style.RelativeSizeSpan(0.75f),
                              android.text.style.StyleSpan(android.graphics.Typeface.ITALIC),
-                             android.text.style.ForegroundColorSpan(android.graphics.Color.DKGRAY)
+                             android.text.style.ForegroundColorSpan(captionColor)
                          )
                          for (span in spans) {
                              visitor.builder().setSpan(span, tag.start(), tag.end(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -1140,11 +1208,13 @@ class DetailActivity : AppCompatActivity() {
 
     private fun onSwipeLeft() {
         // Swipe Left -> Go to Next Chapter
+        stopTts() // Ensure TTS stops and resets on navigation
         navigateToNextChapter()
     }
 
     private fun onSwipeRight() {
         // Swipe Right -> Go to Previous Chapter
+        stopTts() // Ensure TTS stops and resets on navigation
         navigateToPreviousChapter()
     }
 
@@ -1202,4 +1272,64 @@ class DetailActivity : AppCompatActivity() {
         finish() // Close current chapter to keep back stack clean
     }
 
+    private fun startTts() {
+        // Clean up markdown and custom tags
+        val rawContent = intent.getStringExtra("EXTRA_DATA") ?: ""
+        val cleanContent = rawContent
+            .replace(Regex("\\{\\{image:.*?\\}\\}"), "") // Remove custom image tags
+            .replace(Regex("<.*?>"), "") // Remove HTML tags
+            .replace(Regex("[#*`_~]"), " ") // Replace markdown chars with space for natural pauses
+            .replace(Regex("\\[(.*?)\\]\\(.*?\\)"), "$1") // Simplify markdown links to just text
+            .replace(Regex("\\s+"), " ") // Normalize whitespace
+            .trim()
+
+        if (cleanContent.isEmpty()) return
+
+        val result = textToSpeech?.speak(cleanContent.substring(currentTtsOffset), TextToSpeech.QUEUE_FLUSH, null, "ChapterContent")
+        if (result == TextToSpeech.SUCCESS) {
+            isTtsPlaying = true
+            buttonTts.setImageResource(R.drawable.ic_pause)
+            
+            // Set listener to reset icon when done
+            textToSpeech?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) {
+                    runOnUiThread {
+                        isTtsPlaying = false
+                        currentTtsOffset = 0 // Reset on completion
+                        buttonTts.setImageResource(R.drawable.ic_speaker)
+                    }
+                }
+                override fun onError(utteranceId: String?) {
+                    runOnUiThread {
+                        isTtsPlaying = false
+                        buttonTts.setImageResource(R.drawable.ic_speaker)
+                    }
+                }
+                override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                    // Update offset as it reads so we can resume from the same spot
+                    currentTtsOffset += start
+                }
+            })
+        }
+    }
+
+    private fun pauseTts() {
+        textToSpeech?.stop()
+        isTtsPlaying = false
+        buttonTts.setImageResource(R.drawable.ic_speaker)
+    }
+
+    private fun stopTts() {
+        textToSpeech?.stop()
+        isTtsPlaying = false
+        currentTtsOffset = 0
+        buttonTts.setImageResource(R.drawable.ic_speaker)
+    }
+
+    override fun onDestroy() {
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        super.onDestroy()
+    }
 }

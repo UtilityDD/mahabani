@@ -620,10 +620,13 @@ class CoverActivity : AppCompatActivity() {
             transitionOverlay.animate().alpha(1f).setDuration(800).start()
             imageView.animate().alpha(1f).setDuration(800).start()
             
-            // Wait for fade in to complete mostly (enough to obscure)
-            delay(600)
+            // CRITICAL: Hide bookshelf background immediately to prevent any flicker/bleeding
+            bookshelfContainer.animate().alpha(0f).setDuration(400).start()
             
-            // Remove the cover overlay from background while obscured
+            // Wait for fade in to complete fully (opaque enough to hide background)
+            delay(800)
+            
+            // Remove the cover overlay from background while fully obscured
             rootView.removeView(coverOverlay)
             
             // Complete the fade in wait
