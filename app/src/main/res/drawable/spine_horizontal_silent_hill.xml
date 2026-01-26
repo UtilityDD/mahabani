@@ -1,41 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Base solid color layer -->
     <item>
         <shape android:shape="rectangle">
-            <gradient
-                android:angle="90"
-                android:startColor="#2A3D5C"
-                android:centerColor="#4A5D7C"
-                android:endColor="#2A3D5C"
-                android:type="linear"
-                android:centerY="0.5"/>
+            <solid android:color="#4A5D7C"/>
             <corners android:radius="4dp"/>
         </shape>
     </item>
-    <item android:top="20dp" android:bottom="20dp">
+
+    <!-- Top edge curvature shadow (pronounced) -->
+    <item android:height="8dp" android:gravity="top">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="#44000000"
+                android:endColor="#00000000"/>
+        </shape>
+    </item>
+
+    <!-- Bottom edge curvature shadow (pronounced) -->
+    <item android:height="8dp" android:gravity="bottom">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="90"
+                android:startColor="#44000000"
+                android:endColor="#00000000"/>
+        </shape>
+    </item>
+
+    <!-- Top subtle highlight -->
+    <item android:height="1.5dp" android:gravity="top" android:top="0.5dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#22FFFFFF"/>
+        </shape>
+    </item>
+
+    <!-- Centered subtle diffused highlights for 3D depth -->
+    <item android:top="10dp" android:bottom="10dp">
         <shape android:shape="rectangle">
             <gradient
                 android:angle="90"
                 android:startColor="#00000000"
-                android:centerColor="#11FFFFFF"
+                android:centerColor="#08FFFFFF"
                 android:endColor="#00000000"
                 android:type="linear"/>
-        </shape>
-    </item>
-    <item android:height="4dp" android:gravity="top">
-        <shape android:shape="rectangle">
-            <gradient
-                android:angle="270"
-                android:startColor="#33000000"
-                android:endColor="#00000000"/>
-        </shape>
-    </item>
-    <item android:height="4dp" android:gravity="bottom">
-        <shape android:shape="rectangle">
-            <gradient
-                android:angle="90"
-                android:startColor="#33000000"
-                android:endColor="#00000000"/>
         </shape>
     </item>
 </layer-list>

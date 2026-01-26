@@ -311,8 +311,8 @@ class CoverActivity : AppCompatActivity() {
             android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
         )
         labelParams.gravity = android.view.Gravity.CENTER_VERTICAL
-        labelParams.marginStart = dpToPx(72f) // Leaving space for sticker (16dp margin + 38dp sticker + padding)
-        labelParams.marginEnd = dpToPx(16f)
+        labelParams.marginStart = dpToPx(72f) // Space for sticker
+        labelParams.marginEnd = dpToPx(72f)   // Space to balance distance from serial and year
         labelContainer.layoutParams = labelParams
         labelContainer.gravity = android.view.Gravity.CENTER
         labelContainer.tag = "spine_text"
@@ -461,6 +461,28 @@ class CoverActivity : AppCompatActivity() {
             textContainer.addView(yearText)
         }
 
+        // Add arrival status message for unlinked books
+        if (book.sheetId.isEmpty()) {
+            val statusText = TextView(this)
+            val statusParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            statusParams.topMargin = dpToPx(16f)
+            statusText.layoutParams = statusParams
+            
+            val comingSoon = getString(R.string.status_coming_soon)
+            val checkUpdates = getString(R.string.status_check_updates)
+            statusText.text = "$comingSoon\n$checkUpdates"
+            
+            statusText.textSize = 14f
+            statusText.setTextColor(android.graphics.Color.parseColor("#FFAB91")) // Soft coral
+            statusText.typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD_ITALIC)
+            statusText.gravity = android.view.Gravity.CENTER
+            statusText.setShadowLayer(4f, 0f, 2f, android.graphics.Color.BLACK)
+            textContainer.addView(statusText)
+        }
+
         bookContainer.addView(textContainer)
         overlay.addView(bookContainer)
         
@@ -537,22 +559,27 @@ class CoverActivity : AppCompatActivity() {
         imageView.setImageResource(randomImage)
         
         animationScope.launch {
-            // 1. Quick fade in for the black background and meditative image
-            transitionOverlay.animate().alpha(1f).setDuration(400).start()
-            imageView.animate().alpha(1f).setDuration(600).start()
+            // 1. Smooth fade in for the black background and meditative image
+            transitionOverlay.animate().alpha(1f).setDuration(800).start()
+            imageView.animate().alpha(1f).setDuration(800).start()
+            
+            // Wait for fade in to complete mostly (enough to obscure)
             delay(600)
             
-            // Remove the cover overlay from background while obscured by black
+            // Remove the cover overlay from background while obscured
             rootView.removeView(coverOverlay)
             
-            // 2. Display the image for a very short meditative moment
-            delay(1000)
+            // Complete the fade in wait
+            delay(200)
             
-            // 3. Navigate directly to MainActivity
+            // 2. Display the image for a dedicated meditative moment
+            delay(1200)
+            
+            // 3. Navigate directly to MainActivity (Transition takes 800ms)
             navigateToMain(bookId)
             
-            // Cleanup the overlay
-            delay(800)
+            // Cleanup the overlay AFTER the new activity is fully visible
+            delay(1200)
             rootView.removeView(transitionOverlay)
         }
     }
