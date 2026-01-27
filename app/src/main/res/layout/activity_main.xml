@@ -40,9 +40,11 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="start|center_vertical"
                 android:layout_marginStart="12dp"
-                android:fontFamily="@font/galada"
+                app:fontFamily="@font/galada"
                 android:textSize="22sp"
                 android:textColor="?attr/colorOnPrimary"
+                android:includeFontPadding="false"
+                android:translationY="5dp"
                 android:visibility="gone"
                 tools:text="Book Name"
                 tools:visibility="visible" />

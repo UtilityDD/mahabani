@@ -171,9 +171,6 @@ class CoverActivity : AppCompatActivity() {
             searchText.textCursorDrawable = cursorDrawable
         }
 
-        searchView.isIconified = false // Ensure it's expanded to show cursor immediately
-        searchView.onActionViewExpanded() // Force expand for visibility
-        
         val searchIcon = searchView.findViewById<ImageView>(androidx.appcompat.R.id.search_mag_icon)
         searchIcon.setColorFilter(android.graphics.Color.WHITE)
         

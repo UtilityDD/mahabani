@@ -35,6 +35,8 @@ import androidx.recyclerview.widget.LinearSmoothScroller
 import android.view.Window
 import android.util.TypedValue
 import android.widget.ImageButton
+import androidx.core.content.res.ResourcesCompat
+import android.text.TextUtils
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -170,14 +172,13 @@ class MainActivity : AppCompatActivity() {
 
         // Immediate Toolbar Visibility Logic
         val toolbarIcon: ImageView = findViewById(R.id.toolbar_icon)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
         if (currentBookId == "kada_chabuk") {
             toolbarIcon.visibility = View.VISIBLE
             toolbarTitle.visibility = View.GONE
-            supportActionBar?.title = ""
         } else {
             toolbarIcon.visibility = View.GONE
             toolbarTitle.visibility = View.VISIBLE
-            supportActionBar?.title = "" // Will be set by metadata observer
         }
         
         // Handle window insets to prevent overlap with the status bar
@@ -196,25 +197,33 @@ class MainActivity : AppCompatActivity() {
             val lang = sharedPreferences.getString("selected_language_code", "bn") ?: "bn"
             
             val toolbarIcon: ImageView = findViewById(R.id.toolbar_icon)
-            if (currentBookId == "kada_chabuk") {
-                toolbarIcon.visibility = View.VISIBLE
-                toolbarTitle.visibility = View.GONE
-                supportActionBar?.title = ""
-            } else {
-                toolbarIcon.visibility = View.GONE
-                val bookName = book.getLocalizedName(lang)
-                if (bookName.isNotEmpty()) {
-                    toolbarTitle.text = bookName
-                    toolbarTitle.visibility = View.VISIBLE
-                    supportActionBar?.title = "" // Use custom title instead
-                    
-                    // Match title color to the icon tint (?attr/colorOnPrimary)
-                    val typedValue = TypedValue()
-                    theme.resolveAttribute(com.google.android.material.R.attr.colorOnPrimary, typedValue, true)
-                    val titleColor = typedValue.data
-                    toolbarTitle.setTextColor(titleColor)
+                if (currentBookId == "kada_chabuk") {
+                    toolbarIcon.visibility = View.VISIBLE
+                    toolbarTitle.visibility = View.GONE
+                    supportActionBar?.setDisplayShowTitleEnabled(false)
+                } else {
+                    toolbarIcon.visibility = View.GONE
+                    val bookName = book.getLocalizedName(lang)
+                    if (bookName.isNotEmpty()) {
+                        toolbarTitle.text = bookName
+                        toolbarTitle.visibility = View.VISIBLE
+                        supportActionBar?.setDisplayShowTitleEnabled(false)
+                        
+                        // Force the Galada font programmatically to ensure it's applied
+                        try {
+                            val typeface = ResourcesCompat.getFont(this@MainActivity, R.font.galada)
+                            toolbarTitle.typeface = typeface
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "Error loading Galada font", e)
+                        }
+
+                        // Match title color to the icon tint (?attr/colorOnPrimary)
+                        val typedValue = TypedValue()
+                        theme.resolveAttribute(com.google.android.material.R.attr.colorOnPrimary, typedValue, true)
+                        val titleColor = typedValue.data
+                        toolbarTitle.setTextColor(titleColor)
+                    }
                 }
-            }
         }
         
         // Ensure we actually fetch the metadata (from DB first, then network)
