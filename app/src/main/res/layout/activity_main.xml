@@ -34,6 +34,19 @@
                 android:src="@drawable/loading_icon" 
                 android:contentDescription="@string/app_name" />
 
+            <TextView
+                android:id="@+id/toolbar_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="12dp"
+                android:fontFamily="@font/galada"
+                android:textSize="22sp"
+                android:textColor="?attr/colorOnPrimary"
+                android:visibility="gone"
+                tools:text="Book Name"
+                tools:visibility="visible" />
+
         </com.google.android.material.appbar.MaterialToolbar>
 
     </com.google.android.material.appbar.AppBarLayout>

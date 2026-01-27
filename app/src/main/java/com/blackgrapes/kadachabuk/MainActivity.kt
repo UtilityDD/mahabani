@@ -112,6 +112,7 @@ class MainActivity : AppCompatActivity() {
     private var pristineOriginalChapters: List<Chapter> = emptyList() // Holds the clean, sorted list
     private lateinit var retryButton: Button
     private lateinit var downloadedHeadingsAdapter: DownloadedChaptersAdapter
+    private lateinit var toolbarTitle: TextView
 
     private lateinit var fabBookmarks: FloatingActionButton
     private var isShowingBookmarks = false
@@ -164,18 +165,20 @@ class MainActivity : AppCompatActivity() {
         val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)
         
+        initializeViews()
+        setupRetryButton() // Ensure retry button is initialized
+
         // Immediate Toolbar Visibility Logic
         val toolbarIcon: ImageView = findViewById(R.id.toolbar_icon)
         if (currentBookId == "kada_chabuk") {
             toolbarIcon.visibility = View.VISIBLE
+            toolbarTitle.visibility = View.GONE
             supportActionBar?.title = ""
         } else {
             toolbarIcon.visibility = View.GONE
+            toolbarTitle.visibility = View.VISIBLE
             supportActionBar?.title = "" // Will be set by metadata observer
         }
-
-        initializeViews()
-        setupRetryButton() // Ensure retry button is initialized
         
         // Handle window insets to prevent overlap with the status bar
         handleWindowInsets()
@@ -195,18 +198,21 @@ class MainActivity : AppCompatActivity() {
             val toolbarIcon: ImageView = findViewById(R.id.toolbar_icon)
             if (currentBookId == "kada_chabuk") {
                 toolbarIcon.visibility = View.VISIBLE
+                toolbarTitle.visibility = View.GONE
                 supportActionBar?.title = ""
             } else {
                 toolbarIcon.visibility = View.GONE
                 val bookName = book.getLocalizedName(lang)
                 if (bookName.isNotEmpty()) {
-                    supportActionBar?.title = bookName
+                    toolbarTitle.text = bookName
+                    toolbarTitle.visibility = View.VISIBLE
+                    supportActionBar?.title = "" // Use custom title instead
                     
                     // Match title color to the icon tint (?attr/colorOnPrimary)
                     val typedValue = TypedValue()
                     theme.resolveAttribute(com.google.android.material.R.attr.colorOnPrimary, typedValue, true)
                     val titleColor = typedValue.data
-                    toolbar.setTitleTextColor(titleColor)
+                    toolbarTitle.setTextColor(titleColor)
                 }
             }
         }
@@ -322,6 +328,7 @@ class MainActivity : AppCompatActivity() {
         noResultsGroup = findViewById(R.id.no_results_group) // Changed to the new group ID
         retryButton = findViewById(R.id.retry_button)
         fabBookmarks = findViewById(R.id.fab_bookmarks)
+        toolbarTitle = findViewById(R.id.toolbar_title)
     }
 
     private fun loadLanguageArrays() {

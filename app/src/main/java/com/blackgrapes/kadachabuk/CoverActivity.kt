@@ -54,7 +54,9 @@ class CoverActivity : AppCompatActivity() {
     private lateinit var bookshelfContainer: View
     private lateinit var kadachabukBook: ImageView
 
-    private val animationScope = CoroutineScope(Dispatchers.Main)
+    private var activeCoverOverlay: View? = null
+    private var activeTransitionOverlay: View? = null
+
     private var animationJob: Job? = null
     private var populationJob: Job? = null
     private var isAnimationSkippable = true
@@ -154,9 +156,23 @@ class CoverActivity : AppCompatActivity() {
         val searchView = findViewById<androidx.appcompat.widget.SearchView>(R.id.bookshelf_search_view)
         
         // Style the search view to be "minimal and clean"
-        val searchText = searchView.findViewById<TextView>(androidx.appcompat.R.id.search_src_text)
+        val searchText = searchView.findViewById<androidx.appcompat.widget.SearchView.SearchAutoComplete>(androidx.appcompat.R.id.search_src_text)
         searchText.setTextColor(android.graphics.Color.WHITE)
         searchText.setHintTextColor(android.graphics.Color.parseColor("#80FFFFFF"))
+        
+        // Make the blinking cursor prominent, thick, and white
+        searchText.isCursorVisible = true
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val cursorDrawable = android.graphics.drawable.GradientDrawable()
+            cursorDrawable.setColor(android.graphics.Color.WHITE)
+            // Use 2dp thickness
+            val thicknessPx = dpToPx(2f)
+            cursorDrawable.setSize(thicknessPx, 0) // Width is controlled by setSize, height follows text
+            searchText.textCursorDrawable = cursorDrawable
+        }
+
+        searchView.isIconified = false // Ensure it's expanded to show cursor immediately
+        searchView.onActionViewExpanded() // Force expand for visibility
         
         val searchIcon = searchView.findViewById<ImageView>(androidx.appcompat.R.id.search_mag_icon)
         searchIcon.setColorFilter(android.graphics.Color.WHITE)
@@ -202,6 +218,18 @@ class CoverActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        
+        // Reset bookshelf visibility in case we returned from a transition
+        bookshelfContainer.alpha = 1f
+        bookshelfContainer.visibility = View.VISIBLE
+        
+        // Cleanup any lingering overlays from previous transitions
+        val rootView = window.decorView.findViewById<android.view.ViewGroup>(android.R.id.content)
+        safeRemoveView(activeCoverOverlay, rootView)
+        safeRemoveView(activeTransitionOverlay, rootView)
+        activeCoverOverlay = null
+        activeTransitionOverlay = null
+
         // Check if language has changed while we were away
         val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
         val selectedLang = sharedPreferences.getString("selected_language_code", null)
@@ -217,14 +245,14 @@ class CoverActivity : AppCompatActivity() {
     private fun refreshShelf(newLang: String) {
         currentBookshelfLanguage = newLang
         populationJob?.cancel()
-        populationJob = animationScope.launch { 
+        populationJob = lifecycleScope.launch { 
             shelfBooksContainer.removeAllViews()
             populateBookshelf() 
         }
     }
 
     private fun startAnimationSequence() {
-        animationJob = animationScope.launch {
+        animationJob = lifecycleScope.launch {
             // Hide views initially
             coverImageView.alpha = 0f
             bookshelfContainer.alpha = 0f
@@ -240,7 +268,7 @@ class CoverActivity : AppCompatActivity() {
             
             // Populate books while shelf fades in
             populationJob?.cancel()
-            populationJob = animationScope.launch { populateBookshelf() }
+            populationJob = lifecycleScope.launch { populateBookshelf() }
             populationJob?.join() // Wait for population to finish before staggering
             
             // Animate books entry (staggered)
@@ -274,30 +302,45 @@ class CoverActivity : AppCompatActivity() {
 
         val sortedBooks = fetchedBooks.sortedBy { it.sl }
 
-        for (book in sortedBooks) {
+        for ((index, book) in sortedBooks.withIndex()) {
             // Initialize state
             bookStates[book.bookId] = BookState.SPINE
             
             // Fetch progress
             val progress = bookViewModel.getBookProgress(lang, book.bookId)
             
-            val bookView = createBookView(book, lang, progress)
+            val bookView = createBookView(book, lang, progress, index)
             shelfBooksContainer.addView(bookView)
         }
     }
 
-    private fun createBookView(book: LibraryBook, lang: String, progress: Int = 0): View {
+    private fun createBookView(book: LibraryBook, lang: String, progress: Int = 0, index: Int = 0): View {
         val (spineRes, coverRes) = bookAssetsMap[book.bookId] ?: Pair(R.drawable.spine_horizontal_the_echo, R.drawable.cover_the_echo)
+        
+        // --- Variety Logic for All Books EXCEPT the 1st one ---
+        val isFirstBook = index == 0
+        val spineHeight = if (isFirstBook) 80f else (66..76).random().toFloat()
+        
+        // Curated professional leathery/cloth book colors
+        val spineColors = listOf(
+            "#3E0F0F", // Deep Maroon
+            "#0A2A12", // British Racing Green
+            "#051030", // Midnight Blue
+            "#212121", // Deep Charcoal
+            "#2B1B17", // Dark Chocolate Brown
+            "#3E424B", // Stormy Slate
+            "#4A3728"  // Aged Leather
+        )
         
         // Container for the book with shadow
         val cardView = android.widget.FrameLayout(this)
         val cardParams = android.widget.LinearLayout.LayoutParams(
             android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-            dpToPx(80f) // Height of horizontal book
+            dpToPx(spineHeight)
         )
         cardParams.setMargins(0, dpToPx(8f), 0, dpToPx(8f))
         cardView.layoutParams = cardParams
-        cardView.elevation = dpToPx(4f).toFloat()
+        cardView.elevation = dpToPx(5f).toFloat()
         
         // The book image
         val imageView = ImageView(this)
@@ -308,10 +351,41 @@ class CoverActivity : AppCompatActivity() {
         imageView.layoutParams = imageParams
         imageView.setImageResource(spineRes)
         imageView.scaleType = ImageView.ScaleType.CENTER_CROP
+        
+        // Apply variety color filter for ALL books except the 1st
+        if (!isFirstBook) {
+            // Use true randomization based on the bookId or index
+            val randomColor = android.graphics.Color.parseColor(spineColors.random())
+            imageView.setColorFilter(randomColor, android.graphics.PorterDuff.Mode.MULTIPLY)
+            imageView.alpha = 0.9f
+        }
+
         imageView.contentDescription = book.getLocalizedName(lang)
         imageView.tag = book // Store book data in tag
         
         cardView.addView(imageView)
+
+        // --- Realistic 3D Curve and Binding Overlay ---
+        val lightingOverlay = android.view.View(this)
+        lightingOverlay.layoutParams = android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        
+        // Create vertical gradient for spine curvature (Top to Bottom)
+        val curveGradient = android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(
+                android.graphics.Color.parseColor("#55000000"), // Top Binding Shadow
+                android.graphics.Color.parseColor("#00FFFFFF"), // Top Curve Highlight
+                android.graphics.Color.parseColor("#15FFFFFF"), // Center Shine
+                android.graphics.Color.parseColor("#00FFFFFF"), // Bottom Curve Highlight
+                android.graphics.Color.parseColor("#55000000")  // Bottom Binding Shadow
+            )
+        )
+        lightingOverlay.background = curveGradient
+        lightingOverlay.alpha = 0.7f
+        cardView.addView(lightingOverlay)
         
         // Add library sticker (Serial Number)
         val stickerTextView = TextView(this)
@@ -435,8 +509,14 @@ class CoverActivity : AppCompatActivity() {
     }
 
     private fun showBookCoverOverlay(book: LibraryBook, lang: String, coverRes: Int) {
+        val rootView = window.decorView.findViewById<android.view.ViewGroup>(android.R.id.content)
+        
+        // Remove any existing overlay first
+        safeRemoveView(activeCoverOverlay, rootView)
+
         // Create fullscreen overlay
         val overlay = android.widget.FrameLayout(this)
+        activeCoverOverlay = overlay
         overlay.setBackgroundColor(android.graphics.Color.parseColor("#E0000000")) // Darker semi-transparent
         overlay.layoutParams = android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
@@ -544,7 +624,6 @@ class CoverActivity : AppCompatActivity() {
         overlay.addView(bookContainer)
         
         // Add to root view
-        val rootView = window.decorView.findViewById<android.view.ViewGroup>(android.R.id.content)
         rootView.addView(overlay)
         
         // Animate overlay entrance
@@ -573,7 +652,8 @@ class CoverActivity : AppCompatActivity() {
                     .alpha(0f)
                     .setDuration(350)
                     .withEndAction {
-                        rootView.removeView(overlay)
+                        safeRemoveView(overlay, rootView)
+                        if (activeCoverOverlay == overlay) activeCoverOverlay = null
                     }
                     .start()
             }
@@ -581,14 +661,20 @@ class CoverActivity : AppCompatActivity() {
     }
 
     private fun startMeditativeTransition(rootView: android.view.ViewGroup, coverOverlay: View, bookId: String) {
+        // Remove any existing transition overlay first
+        safeRemoveView(activeTransitionOverlay, rootView)
+
         // Create full screen transition overlay
         val transitionOverlay = android.widget.FrameLayout(this)
+        activeTransitionOverlay = transitionOverlay
         transitionOverlay.setBackgroundColor(android.graphics.Color.BLACK)
         transitionOverlay.layoutParams = android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT
         )
         transitionOverlay.alpha = 0f
+        transitionOverlay.isClickable = true // Consume clicks to prevent interaction during transition
+        transitionOverlay.isFocusable = true
         
         // Single image view for the random quote/photo
         val imageView = ImageView(this)
@@ -603,19 +689,19 @@ class CoverActivity : AppCompatActivity() {
         transitionOverlay.addView(imageView)
         rootView.addView(transitionOverlay)
         
-        // List of meditative images
+        // List of meditative images (Thakur set)
         val images = listOf(
-            R.drawable.card_photo_1, R.drawable.card_photo_2, R.drawable.card_photo_3,
-            R.drawable.card_photo_4, R.drawable.card_photo_5, R.drawable.card_photo_6,
-            R.drawable.card_photo_7, R.drawable.card_photo_8, R.drawable.card_photo_9,
-            R.drawable.card_photo_10
+            R.drawable.thakur_1, R.drawable.thakur_2, R.drawable.thakur_3,
+            R.drawable.thakur_4, R.drawable.thakur_5, R.drawable.thakur_6,
+            R.drawable.thakur_7, R.drawable.thakur_8, R.drawable.thakur_9,
+            R.drawable.thakur_10
         )
         
         // Pick exactly one random image
         val randomImage = images.random()
         imageView.setImageResource(randomImage)
         
-        animationScope.launch {
+        lifecycleScope.launch {
             // 1. Smooth fade in for the black background and meditative image
             transitionOverlay.animate().alpha(1f).setDuration(800).start()
             imageView.animate().alpha(1f).setDuration(800).start()
@@ -627,7 +713,8 @@ class CoverActivity : AppCompatActivity() {
             delay(800)
             
             // Remove the cover overlay from background while fully obscured
-            rootView.removeView(coverOverlay)
+            safeRemoveView(coverOverlay, rootView)
+            if (activeCoverOverlay == coverOverlay) activeCoverOverlay = null
             
             // Complete the fade in wait
             delay(200)
@@ -640,7 +727,16 @@ class CoverActivity : AppCompatActivity() {
             
             // Cleanup the overlay AFTER the new activity is fully visible
             delay(1200)
-            rootView.removeView(transitionOverlay)
+            safeRemoveView(transitionOverlay, rootView)
+            if (activeTransitionOverlay == transitionOverlay) activeTransitionOverlay = null
+        }
+    }
+
+    private fun safeRemoveView(view: View?, parent: android.view.ViewGroup) {
+        view?.let {
+            if (it.parent != null) {
+                parent.removeView(it)
+            }
         }
     }
 
@@ -653,7 +749,7 @@ class CoverActivity : AppCompatActivity() {
         isAnimationSkippable = false
         animationJob?.cancel()
 
-        animationScope.launch {
+        lifecycleScope.launch {
             bookshelfContainer.alpha = 1f
             bookshelfContainer.visibility = View.VISIBLE
             
@@ -691,7 +787,7 @@ class CoverActivity : AppCompatActivity() {
         rvLanguages.layoutManager = LinearLayoutManager(this)
         (rvLanguages.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
 
-        animationScope.launch {
+        lifecycleScope.launch {
             val languageAdapter = SimplifiedLanguageAdapter(
                 languages = languageNamesArr.zip(languageCodesArr).toList(),
                 currentSelectedCode = savedLangCode,
