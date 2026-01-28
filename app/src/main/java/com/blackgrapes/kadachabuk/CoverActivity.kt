@@ -39,6 +39,8 @@ import android.app.Dialog
 import android.content.DialogInterface
 import android.text.TextUtils
 import com.blackgrapes.kadachabuk.WindowUtils
+import io.noties.markwon.Markwon
+import io.noties.markwon.linkify.LinkifyPlugin
 
 private const val READER_THEME_PREFS = "ReaderThemePrefs"
 private const val KEY_READER_THEME = "readerTheme"
@@ -314,20 +316,9 @@ class CoverActivity : AppCompatActivity() {
     private fun createBookView(book: LibraryBook, lang: String, progress: Int = 0, index: Int = 0): View {
         val (spineRes, coverRes) = bookAssetsMap[book.bookId] ?: Pair(R.drawable.spine_horizontal_the_echo, R.drawable.cover_the_echo)
         
-        // --- Variety Logic for All Books EXCEPT the 1st one ---
-        val isFirstBook = index == 0
-        val spineHeight = if (isFirstBook) 80f else (66..76).random().toFloat()
-        
-        // Curated professional leathery/cloth book colors
-        val spineColors = listOf(
-            "#3E0F0F", // Deep Maroon
-            "#0A2A12", // British Racing Green
-            "#051030", // Midnight Blue
-            "#212121", // Deep Charcoal
-            "#2B1B17", // Dark Chocolate Brown
-            "#3E424B", // Stormy Slate
-            "#4A3728"  // Aged Leather
-        )
+        // --- Standardized Aesthetic ---
+        // All books now share the same height and original color for a uniform, premium look
+        val spineHeight = 84f // Slightly taller for better prominence and 3D detail
         
         // Container for the book with shadow
         val cardView = android.widget.FrameLayout(this)
@@ -337,7 +328,8 @@ class CoverActivity : AppCompatActivity() {
         )
         cardParams.setMargins(0, dpToPx(8f), 0, dpToPx(8f))
         cardView.layoutParams = cardParams
-        cardView.elevation = dpToPx(5f).toFloat()
+        // Increased elevation significantly (5dp -> 12dp) to make spines "pop" off the background
+        cardView.elevation = dpToPx(12f).toFloat()
         
         // The book image
         val imageView = ImageView(this)
@@ -349,13 +341,8 @@ class CoverActivity : AppCompatActivity() {
         imageView.setImageResource(spineRes)
         imageView.scaleType = ImageView.ScaleType.CENTER_CROP
         
-        // Apply variety color filter for ALL books except the 1st
-        if (!isFirstBook) {
-            // Use true randomization based on the bookId or index
-            val randomColor = android.graphics.Color.parseColor(spineColors.random())
-            imageView.setColorFilter(randomColor, android.graphics.PorterDuff.Mode.MULTIPLY)
-            imageView.alpha = 0.9f
-        }
+        // No color filter applied - all books use their original, high-quality spine assets
+        imageView.alpha = 1.0f 
 
         imageView.contentDescription = book.getLocalizedName(lang)
         imageView.tag = book // Store book data in tag
@@ -369,20 +356,43 @@ class CoverActivity : AppCompatActivity() {
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT
         )
         
-        // Create vertical gradient for spine curvature (Top to Bottom)
+        // Create vertical gradient for spine curvature (Top to Bottom) - Enhanced Depth
         val curveGradient = android.graphics.drawable.GradientDrawable(
             android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
             intArrayOf(
-                android.graphics.Color.parseColor("#55000000"), // Top Binding Shadow
-                android.graphics.Color.parseColor("#00FFFFFF"), // Top Curve Highlight
-                android.graphics.Color.parseColor("#15FFFFFF"), // Center Shine
-                android.graphics.Color.parseColor("#00FFFFFF"), // Bottom Curve Highlight
-                android.graphics.Color.parseColor("#55000000")  // Bottom Binding Shadow
+                android.graphics.Color.parseColor("#88000000"), // Intense Top Shadow
+                android.graphics.Color.parseColor("#15FFFFFF"), // Soft Top Highlight
+                android.graphics.Color.parseColor("#60FFFFFF"), // Hyper-Glossy Center Shine
+                android.graphics.Color.parseColor("#15FFFFFF"), // Soft Bottom Highlight
+                android.graphics.Color.parseColor("#88000000")  // Intense Bottom Shadow
             )
         )
         lightingOverlay.background = curveGradient
         lightingOverlay.alpha = 0.7f
         cardView.addView(lightingOverlay)
+
+        // --- Physical Bevel Highlights (Simulating board thickness) ---
+        // Top Highlight Edge
+        val topBevel = android.view.View(this)
+        val topBevelParams = android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            dpToPx(1f)
+        )
+        topBevelParams.gravity = android.view.Gravity.TOP
+        topBevel.layoutParams = topBevelParams
+        topBevel.setBackgroundColor(android.graphics.Color.parseColor("#40FFFFFF"))
+        cardView.addView(topBevel)
+
+        // Bottom Shadow Edge
+        val bottomBevel = android.view.View(this)
+        val bottomBevelParams = android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            dpToPx(1f)
+        )
+        bottomBevelParams.gravity = android.view.Gravity.BOTTOM
+        bottomBevel.layoutParams = bottomBevelParams
+        bottomBevel.setBackgroundColor(android.graphics.Color.parseColor("#60000000"))
+        cardView.addView(bottomBevel)
         
         // Add library sticker (Serial Number)
         val stickerTextView = TextView(this)
@@ -661,6 +671,12 @@ class CoverActivity : AppCompatActivity() {
         // Remove any existing transition overlay first
         safeRemoveView(activeTransitionOverlay, rootView)
 
+        val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        val langCode = sharedPreferences.getString("selected_language_code", "bn") ?: "bn"
+
+        // Step 0: Pre-fetch About Info in parallel for the cinematic page
+        bookViewModel.fetchAboutInfo(langCode, bookId = bookId)
+
         // Create full screen transition overlay
         val transitionOverlay = android.widget.FrameLayout(this)
         activeTransitionOverlay = transitionOverlay
@@ -733,17 +749,125 @@ class CoverActivity : AppCompatActivity() {
             // Complete the fade in wait
             delay(200)
             
-            // 2. Display the image for a dedicated meditative moment
-            delay(1200)
+            // 2. Display the image for a dedicated meditative moment (shorter now, as About page extends it)
+            delay(1500)
             
-            // 3. Navigate directly to MainActivity (Transition takes 800ms)
-            navigateToMain(bookId)
-            
-            // Cleanup the overlay AFTER the new activity is fully visible
-            delay(1200)
-            safeRemoveView(transitionOverlay, rootView)
-            if (activeTransitionOverlay == transitionOverlay) activeTransitionOverlay = null
+            // 3. Show the cinematic About Page overlay
+            showAboutPageOverlay(bookId, langCode) {
+                // Navigate directly to MainActivity when user clicks "Continue"
+                navigateToMain(bookId)
+                
+                // Cleanup the transition system
+                safeRemoveView(transitionOverlay, rootView)
+                if (activeTransitionOverlay == transitionOverlay) activeTransitionOverlay = null
+            }
         }
+    }
+
+    private fun showAboutPageOverlay(bookId: String, langCode: String, onFinished: () -> Unit) {
+        val rootView = window.decorView.findViewById<android.view.ViewGroup>(android.R.id.content)
+        
+        // Full screen about overlay
+        val aboutOverlay = android.widget.FrameLayout(this)
+        aboutOverlay.layoutParams = android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        aboutOverlay.setBackgroundColor(android.graphics.Color.parseColor("#E6000000")) // Deep dark blur
+        aboutOverlay.alpha = 0f
+        aboutOverlay.elevation = dpToPx(30f).toFloat()
+
+        // Content Card (Manuscript Style)
+        val cardView = com.google.android.material.card.MaterialCardView(this)
+        val cardParams = android.widget.FrameLayout.LayoutParams(
+            dpToPx(320f),
+            dpToPx(500f)
+        )
+        cardParams.gravity = android.view.Gravity.CENTER
+        cardView.layoutParams = cardParams
+        cardView.radius = dpToPx(8f).toFloat()
+        cardView.cardElevation = dpToPx(20f).toFloat()
+        cardView.setBackgroundResource(R.drawable.paper_texture_background_light)
+        
+        val contentLayout = android.widget.LinearLayout(this)
+        contentLayout.orientation = android.widget.LinearLayout.VERTICAL
+        contentLayout.setPadding(dpToPx(24f), dpToPx(24f), dpToPx(24f), dpToPx(16f))
+        contentLayout.gravity = android.view.Gravity.CENTER_HORIZONTAL
+        
+        // Title in Galada
+        val titleText = TextView(this)
+        val titleParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        titleParams.bottomMargin = dpToPx(16f)
+        titleText.layoutParams = titleParams
+        titleText.textSize = 24f
+        titleText.setTextColor(android.graphics.Color.parseColor("#3E2723"))
+        titleText.typeface = androidx.core.content.res.ResourcesCompat.getFont(this, R.font.galada)
+        
+        // Fetch book from DB or use placeholder
+        lifecycleScope.launch {
+            val book = bookViewModel.libraryBooks.value?.find { it.bookId == bookId }
+            titleText.text = book?.getLocalizedName(langCode) ?: "About"
+            
+            // Content (Markwon)
+            val scrollView = android.widget.ScrollView(this@CoverActivity)
+            val scrollParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+            scrollView.layoutParams = scrollParams
+            
+            val aboutContent = TextView(this@CoverActivity)
+            aboutContent.setTextColor(android.graphics.Color.parseColor("#4E342E"))
+            aboutContent.textSize = 15f
+            aboutContent.setLineSpacing(0f, 1.25f)
+            
+            val markwon = Markwon.builder(this@CoverActivity)
+                .usePlugin(LinkifyPlugin.create())
+                .build()
+            
+            // Get content from ViewModel (it was pre-fetched in startMeditativeTransition)
+            bookViewModel.aboutInfo.observe(this@CoverActivity) { result ->
+                val content = result.getOrNull()
+                if (!content.isNullOrEmpty()) {
+                    markwon.setMarkdown(aboutContent, content)
+                }
+            }
+            
+            scrollView.addView(aboutContent)
+            contentLayout.addView(titleText)
+            contentLayout.addView(scrollView)
+            
+            // Continue Button
+            val continueButton = android.widget.Button(this@CoverActivity, null, com.google.android.material.R.attr.materialButtonStyle)
+            val btnParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            btnParams.topMargin = dpToPx(16f)
+            continueButton.layoutParams = btnParams
+            continueButton.text = "Continue" // Potentially localize this?
+            continueButton.setBackgroundColor(android.graphics.Color.parseColor("#5D4037"))
+            continueButton.setTextColor(android.graphics.Color.WHITE)
+            
+            continueButton.setOnClickListener {
+                aboutOverlay.animate().alpha(0f).setDuration(400).withEndAction {
+                    safeRemoveView(aboutOverlay, rootView)
+                }.start()
+                onFinished()
+            }
+            contentLayout.addView(continueButton)
+        }
+        
+        cardView.addView(contentLayout)
+        aboutOverlay.addView(cardView)
+        rootView.addView(aboutOverlay)
+        
+        // Fade in the transition overlay
+        aboutOverlay.animate().alpha(1f).setDuration(600).start()
     }
 
     private fun safeRemoveView(view: View?, parent: android.view.ViewGroup) {

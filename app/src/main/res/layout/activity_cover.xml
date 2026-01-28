@@ -41,11 +41,11 @@
             android:alpha="0.8"
             android:contentDescription="Bookshelf Background" />
 
-        <!-- Dark overlay for blur effect -->
+        <!-- Dark overlay for blur effect - Reduced to 30% for clearer wood texture -->
         <View
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#80000000"
+            android:background="#4D000000"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
 
@@ -81,6 +81,8 @@
             android:layout_height="0dp"
             android:fillViewport="true"
             android:scrollbars="none"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             app:layout_constraintTop_toBottomOf="@id/search_card"
             app:layout_constraintBottom_toBottomOf="parent">
 
@@ -90,6 +92,8 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:gravity="center"
+                android:clipChildren="false"
+                android:clipToPadding="false"
                 android:paddingTop="100dp"
                 android:paddingBottom="100dp"
                 android:paddingStart="40dp"
