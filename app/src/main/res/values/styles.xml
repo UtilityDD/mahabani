@@ -23,9 +23,17 @@
         <item name="android:textStyle">bold</item> <!-- Use bold font weight in light mode -->
     </style>
 
-    <!-- Define the Chapter Detail Heading style for Light Theme -->
-    <style name="ChapterDetailHeading.TextView" parent="TextAppearance.Material3.HeadlineSmall">
-        <item name="android:textStyle">bold</item>
+    <!-- Define the Chapter Detail Heading style (Premium Library Look) -->
+    <style name="ChapterDetailHeading.TextView" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:fontFamily">@font/galada</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:letterSpacing">0.02</item>
+    </style>
+
+    <!-- Define the Chapter Detail Metadata style -->
+    <style name="ChapterDetailMetadata.TextView" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textStyle">italic</item>
+        <item name="android:alpha">0.7</item>
     </style>
 
     <!-- Define the Chapter Body style for Light Theme -->

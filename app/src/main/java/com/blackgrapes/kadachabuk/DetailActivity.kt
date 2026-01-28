@@ -36,10 +36,15 @@ import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.TypefaceSpan
 import androidx.core.content.ContextCompat // <-- IMPORT THIS
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.app.ShareCompat
 import android.widget.Toast
 import android.util.Log
+import java.text.BreakIterator
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,6 +69,8 @@ import java.util.concurrent.TimeUnit
 private const val FONT_PREFS = "FontPrefs"
 private const val KEY_FONT_SIZE = "fontSize"
 private const val DEFAULT_FONT_SIZE = 18f
+private const val KEY_LINE_SPACING = "lineSpacing"
+private const val DEFAULT_LINE_SPACING = 1.2f
 private const val BOOKMARK_PREFS = "BookmarkPrefs"
 private const val READER_THEME_PREFS = "ReaderThemePrefs"
 private const val KEY_READER_THEME = "readerTheme"
@@ -100,6 +107,7 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var nextMatchButton: ImageButton
     private lateinit var matchCountTextView: TextView
     private lateinit var bookId: String
+    private lateinit var markwon: Markwon
 
     private var chapterHeading: String? = null
     private var chapterDate: String? = null
@@ -297,8 +305,8 @@ class DetailActivity : AppCompatActivity() {
             android.graphics.Color.DKGRAY
         }
 
-        // 1. Create a Markwon instance (with table, link, image, and html support)
-        val markwon = Markwon.builder(this)
+        // 1. Create a Markwon instance with standardized Image handling
+        markwon = Markwon.builder(this)
             .usePlugin(TablePlugin.create(this))
             .usePlugin(LinkifyPlugin.create())
             .usePlugin(io.noties.markwon.html.HtmlPlugin.create { plugin ->
@@ -306,7 +314,7 @@ class DetailActivity : AppCompatActivity() {
                     override fun handle(visitor: io.noties.markwon.MarkwonVisitor, renderer: io.noties.markwon.html.MarkwonHtmlRenderer, tag: io.noties.markwon.html.HtmlTag) {
                          val spans = arrayOf(
                              android.text.style.AlignmentSpan.Standard(android.text.Layout.Alignment.ALIGN_CENTER),
-                             android.text.style.RelativeSizeSpan(0.75f),
+                             android.text.style.RelativeSizeSpan(0.8f), // Slightly larger for better readability
                              android.text.style.StyleSpan(android.graphics.Typeface.ITALIC),
                              android.text.style.ForegroundColorSpan(captionColor)
                          )
@@ -319,38 +327,95 @@ class DetailActivity : AppCompatActivity() {
                         return setOf("book-caption")
                     }
                 })
-            }) // Enable HTML with custom caption styling
+
+                plugin.addHandler(object : io.noties.markwon.html.TagHandler() {
+                    override fun handle(visitor: io.noties.markwon.MarkwonVisitor, renderer: io.noties.markwon.html.MarkwonHtmlRenderer, tag: io.noties.markwon.html.HtmlTag) {
+                        val galada = try {
+                            ResourcesCompat.getFont(this@DetailActivity, R.font.galada)
+                        } catch (e: Exception) {
+                            null
+                        }
+
+                        val typedValue = TypedValue()
+                        theme.resolveAttribute(androidx.appcompat.R.attr.colorPrimary, typedValue, true)
+                        val color = typedValue.data
+
+                        visitor.builder().setSpan(object : android.text.style.ReplacementSpan() {
+                            private var mWidth = 0
+
+                            override fun getSize(paint: android.graphics.Paint, text: CharSequence?, start: Int, end: Int, fm: android.graphics.Paint.FontMetricsInt?): Int {
+                                val originalSize = paint.textSize
+                                paint.textSize = originalSize * 2.0f
+                                if (galada != null) paint.typeface = galada
+                                mWidth = paint.measureText(text, start, end).toInt()
+                                if (fm != null) {
+                                    val newFm = paint.fontMetricsInt
+                                    fm.ascent = newFm.ascent
+                                    fm.top = newFm.top
+                                }
+                                paint.textSize = originalSize
+                                return mWidth
+                            }
+
+                            override fun draw(canvas: android.graphics.Canvas, text: CharSequence?, start: Int, end: Int, x: Float, top: Int, y: Int, bottom: Int, paint: android.graphics.Paint) {
+                                val originalSize = paint.textSize
+                                val originalColor = paint.color
+                                val originalTypeface = paint.typeface
+                                paint.textSize = originalSize * 2.0f
+                                paint.color = color
+                                if (galada != null) paint.typeface = galada
+                                val verticalShift = originalSize * 0.15f 
+                                canvas.drawText(text!!, start, end, x, y + verticalShift, paint)
+                                paint.textSize = originalSize
+                                paint.color = originalColor
+                                paint.typeface = originalTypeface
+                            }
+                        }, tag.start(), tag.end(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+
+                    override fun supportedTags(): Collection<String> {
+                        return setOf("drop-cap")
+                    }
+                })
+            })
+            // Correctly initialize ImagesPlugin
             .usePlugin(io.noties.markwon.image.ImagesPlugin.create { plugin ->
                 plugin.addSchemeHandler(object : io.noties.markwon.image.SchemeHandler() {
                     override fun handle(raw: String, uri: Uri): io.noties.markwon.image.ImageItem {
-                        val transparentDrawable = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+                        val transparentDrawable = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
                         return try {
-                            val resourceName = uri.authority
-                            if (resourceName != null) {
-                                val resId = resources.getIdentifier(resourceName, "drawable", packageName)
+                            // Standardize on using path segments for resource names (res:///resource_name)
+                            val resourceName = uri.lastPathSegment ?: uri.authority ?: ""
+                            if (resourceName.isNotEmpty()) {
+                                // Sanitization: ensure lowercase and underscores (safety check)
+                                val sanitizedName = resourceName.lowercase().replace("-", "_")
+                                val resId = resources.getIdentifier(sanitizedName, "drawable", packageName)
+                                
                                 if (resId != 0) {
                                     val drawable = ContextCompat.getDrawable(this@DetailActivity, resId)
                                     io.noties.markwon.image.ImageItem.withResult(drawable ?: transparentDrawable)
                                 } else {
-                                    io.noties.markwon.image.ImageItem.withResult(transparentDrawable) 
+                                    Log.e("MarkwonImage", "Asset not found: $sanitizedName")
+                                    io.noties.markwon.image.ImageItem.withResult(transparentDrawable)
                                 }
                             } else {
                                 io.noties.markwon.image.ImageItem.withResult(transparentDrawable)
                             }
                         } catch (e: Exception) {
-                            e.printStackTrace()
+                            Log.e("MarkwonImage", "Error loading asset: ${e.message}")
                             io.noties.markwon.image.ImageItem.withResult(transparentDrawable)
                         }
                     }
 
                     override fun supportedSchemes(): Collection<String> {
-                        return setOf("drawable")
+                        return setOf("res")
                     }
                 })
             })
             .build()
 
         // 2. Set the processed markdown content to the TextView
+        // Using setMarkdown ensures both images and custom HTML tags (drop-cap) render correctly
         markwon.setMarkdown(textViewData, processedContent)
 
         title = chapterHeading ?: "Details"
@@ -1013,17 +1078,28 @@ class DetailActivity : AppCompatActivity() {
             applyReaderTheme()
         }
 
+        val lineSpacingSlider = dialog.findViewById<Slider>(R.id.line_spacing_slider)
+        val lineSpacingPrefs = getSharedPreferences(FONT_PREFS, Context.MODE_PRIVATE)
+        lineSpacingSlider.value = lineSpacingPrefs.getFloat(KEY_LINE_SPACING, DEFAULT_LINE_SPACING)
+
+        lineSpacingSlider.addOnChangeListener { _, value, _ ->
+            textViewData.setLineSpacing(0f, value)
+        }
+
         dialog.setOnDismissListener {
-            saveFontSize(textViewData.textSize / resources.displayMetrics.scaledDensity)
+            val finalFontSize = textViewData.textSize / resources.displayMetrics.scaledDensity
+            val finalLineSpacing = lineSpacingSlider.value
+            saveReaderSettings(finalFontSize, finalLineSpacing)
         }
 
         dialog.show()
     }
 
-    private fun saveFontSize(size: Float) {
+    private fun saveReaderSettings(fontSize: Float, lineSpacing: Float) {
         val sharedPreferences = getSharedPreferences(FONT_PREFS, Context.MODE_PRIVATE)
         with(sharedPreferences.edit()) {
-            putFloat(KEY_FONT_SIZE, size)
+            putFloat(KEY_FONT_SIZE, fontSize)
+            putFloat(KEY_LINE_SPACING, lineSpacing)
             apply()
         }
     }
@@ -1031,10 +1107,33 @@ class DetailActivity : AppCompatActivity() {
     private fun loadAndApplyFontSize() {
         val sharedPreferences = getSharedPreferences(FONT_PREFS, Context.MODE_PRIVATE)
         val fontSize = sharedPreferences.getFloat(KEY_FONT_SIZE, DEFAULT_FONT_SIZE)
+        val lineSpacing = sharedPreferences.getFloat(KEY_LINE_SPACING, DEFAULT_LINE_SPACING)
         textViewData.textSize = fontSize
+        textViewData.setLineSpacing(0f, lineSpacing)
     }
 
+
     private fun applyReaderTheme() {
+        val bindingShadow: View? = findViewById(R.id.binding_shadow)
+        val textViewHeading: TextView = findViewById(R.id.textViewHeading)
+        val textViewDate: TextView = findViewById(R.id.textViewDate)
+        val textViewWriter: TextView = findViewById(R.id.textViewWriter)
+        
+        val galada = try {
+            ResourcesCompat.getFont(this, R.font.galada)
+        } catch (e: Exception) {
+            null
+        }
+        
+        // Ensure Galada is applied to heading
+        if (galada != null) {
+            textViewHeading.typeface = galada
+        }
+        
+        // Metadata styling
+        textViewDate.setTypeface(textViewDate.typeface, android.graphics.Typeface.ITALIC)
+        textViewWriter.setTypeface(textViewWriter.typeface, android.graphics.Typeface.ITALIC)
+
         val prefs = getSharedPreferences(READER_THEME_PREFS, Context.MODE_PRIVATE)
         val themeStr = prefs.getString(KEY_READER_THEME, THEME_SEPIA) ?: THEME_SEPIA
         
@@ -1052,34 +1151,112 @@ class DetailActivity : AppCompatActivity() {
         
         when (themeStr) {
             THEME_SEPIA -> {
-                scrollView.setBackgroundColor(ContextCompat.getColor(this, R.color.reader_sepia_bg))
+                scrollView.background = ContextCompat.getDrawable(this, R.drawable.paper_texture_background_light)
                 textViewData.setTextColor(ContextCompat.getColor(this, R.color.reader_sepia_text))
+                textViewHeading.setTextColor(ContextCompat.getColor(this, R.color.reader_sepia_text))
+                val metaColor = ContextCompat.getColor(this, R.color.reader_sepia_text)
+                textViewDate.setTextColor(metaColor)
+                textViewWriter.setTextColor(metaColor)
+                bindingShadow?.visibility = View.VISIBLE
+                bindingShadow?.alpha = 1.0f
             }
             THEME_MIDNIGHT -> {
                 scrollView.setBackgroundColor(ContextCompat.getColor(this, R.color.reader_midnight_bg))
                 textViewData.setTextColor(ContextCompat.getColor(this, R.color.reader_midnight_text))
+                textViewHeading.setTextColor(ContextCompat.getColor(this, R.color.reader_midnight_text))
+                val metaColor = ContextCompat.getColor(this, R.color.reader_midnight_text)
+                textViewDate.setTextColor(metaColor)
+                textViewWriter.setTextColor(metaColor)
+                bindingShadow?.visibility = View.GONE
             }
             else -> {
-                // THEME_LIGHT/DEFAULT - use default app theme colors (Light Mode)
+                // THEME_LIGHT/DEFAULT
+                scrollView.setBackgroundColor(android.graphics.Color.WHITE)
+                bindingShadow?.visibility = View.VISIBLE
+                bindingShadow?.alpha = 0.5f
+                
                 val typedValue = TypedValue()
-                
-                // Use colorSurface for background instead of colorBackground for better compatibility
-                if (theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)) {
-                    scrollView.setBackgroundColor(typedValue.data)
+                val textColor = if (theme.resolveAttribute(androidx.appcompat.R.attr.colorPrimary, typedValue, true)) {
+                    typedValue.data
                 } else {
-                    // Fallback to a safe light default
-                    scrollView.setBackgroundColor(ContextCompat.getColor(this, android.R.color.background_light))
+                    android.graphics.Color.BLACK
                 }
                 
-                if (theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, typedValue, true)) {
-                    textViewData.setTextColor(typedValue.data)
+                textViewHeading.setTextColor(textColor)
+                
+                val onSurfaceColor = if (theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, typedValue, true)) {
+                    typedValue.data
                 } else {
-                    // Fallback to ensure text is visible (Black on white)
-                    textViewData.setTextColor(ContextCompat.getColor(this, android.R.color.black))
+                    android.graphics.Color.BLACK
                 }
+                
+                textViewData.setTextColor(onSurfaceColor)
+                
+                // Muted metadata for light theme
+                textViewDate.setTextColor(onSurfaceColor)
+                textViewDate.alpha = 0.6f
+                textViewWriter.setTextColor(onSurfaceColor)
+                textViewWriter.alpha = 0.6f
             }
         }
+
+        // Re-set the markwon to ensure all spans (especially drop-caps and images) 
+        // correctly pick up any theme-dependent color changes.
+        val rawData = intent.getStringExtra("EXTRA_DATA")
+        if (::markwon.isInitialized && rawData != null) {
+            val processed = processCustomImageTags(rawData)
+            markwon.setMarkdown(textViewData, processed)
+        }
     }
+
+    private fun processCustomImageTags(content: String): String {
+        // Find the first letter or digit to apply drop cap
+        var firstValidCharIndex = -1
+        for (i in 0 until content.length) {
+            if (content[i].isLetter() || content[i].isDigit()) {
+                firstValidCharIndex = i
+                break
+            }
+        }
+
+        var textWithDropCap = content
+        if (firstValidCharIndex != -1) {
+            val iterator = BreakIterator.getCharacterInstance()
+            iterator.setText(content)
+            val clusterEnd = iterator.following(firstValidCharIndex)
+            val end = if (clusterEnd != BreakIterator.DONE) clusterEnd else firstValidCharIndex + 1
+            
+            val dropCapChar = content.substring(firstValidCharIndex, end)
+            textWithDropCap = content.substring(0, firstValidCharIndex) + 
+                             "<drop-cap>$dropCapChar</drop-cap>" + 
+                             content.substring(end)
+        }
+
+        // Robust pattern to catch: ...
+        // Consumes ALL surrounding whitespace (including newlines) to prevent double-spacing
+        val regexWithCaption = Regex("[\\s\\r\\n]*\\{\\{image:(.*?)(?:\\|caption:|\\s*\\|\\s*)(.*?)\\}\\}", RegexOption.DOT_MATCHES_ALL)
+        var processed = textWithDropCap.replace(regexWithCaption) { match ->
+            val rawImageName = match.groupValues[1].trim()
+            val caption = match.groupValues[2].trim()
+            val resourceName = rawImageName.substringBeforeLast(".").replace("-", "_").lowercase()
+            // Use TWO SPACES + NEWLINE (  \n) for a Markdown Hard Break. 
+            // This forces the image to the next line without a paragraph gap.
+            "  \n![image](res:///$resourceName)  \n<book-caption>$caption</book-caption>  \n"
+        }
+
+        val regexNoCaption = Regex("[\\s\\r\\n]*\\{\\{image:(.*?)\\}\\}")
+        processed = processed.replace(regexNoCaption) { match ->
+            val raw = match.value
+            if (raw.contains("|")) return@replace raw
+            val rawImageName = match.groupValues[1].trim()
+            val resourceName = rawImageName.substringBeforeLast(".").replace("-", "_").lowercase()
+            // Turn tag into implicit hard break + image
+            "  \n![image](res:///$resourceName)  \n"
+        }
+
+        return processed
+    }
+
 
     private fun enterFullScreen() {
         if (isFullScreen) return
@@ -1109,25 +1286,6 @@ class DetailActivity : AppCompatActivity() {
         val insets = ViewCompat.getRootWindowInsets(window.decorView)
         val systemBarInsets = insets?.getInsets(WindowInsetsCompat.Type.systemBars())
         scrollView.setPadding(systemBarInsets?.left ?: 0, 0, systemBarInsets?.right ?: 0, 0)
-    }
-
-    private fun processCustomImageTags(text: String): String {
-        // Pattern: {{image:filename.ext | caption}}
-        // Captures: 1=filename with ext, 2=caption
-        val regex = Regex("\\{\\{image:(.*?) \\| (.*?)\\}\\}")
-        return regex.replace(text) { matchResult ->
-            val filenameWithExt = matchResult.groupValues[1].trim()
-            val caption = matchResult.groupValues[2].trim()
-            // Remove extension to get resource name (e.g., "image.webp" -> "image")
-            // Also sanitize: replace hyphens with underscores and ensure lowercase
-            val resourceName = filenameWithExt.substringBeforeLast(".")
-                .replace("-", "_")
-                .lowercase()
-            
-            // Convert to Markdown image syntax using custom 'drawable' scheme
-            // Structure: Image + Newline + Custom Styled Caption Tag (with inner newlines for alignment)
-            "\n\n![${caption}](drawable://${resourceName})\n<book-caption>\n${caption}\n</book-caption>\n\n"
-        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

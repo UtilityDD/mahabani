@@ -29,6 +29,25 @@
             android:valueTo="28.0"
             android:stepSize="2.0"
             app:labelBehavior="gone"
+            android:layout_marginBottom="16dp"
+            />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="8dp"
+            android:text="Line Spacing"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/line_spacing_slider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="1.0"
+            android:valueTo="2.0"
+            android:stepSize="0.1"
+            app:labelBehavior="gone"
             android:layout_marginBottom="24dp"
             />
 

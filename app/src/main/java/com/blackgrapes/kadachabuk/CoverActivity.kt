@@ -699,6 +699,23 @@ class CoverActivity : AppCompatActivity() {
         imageView.setImageResource(randomImage)
         
         lifecycleScope.launch {
+            // Divine Motion (Ken Burns Effect): Slow Zoom and subtle Pan
+            imageView.scaleX = 1.1f
+            imageView.scaleY = 1.1f
+            
+            // Randomly pan slightly left or right/up or down for variety
+            val panX = if (kotlin.random.Random.nextBoolean()) 20f else -20f
+            val panY = if (kotlin.random.Random.nextBoolean()) 20f else -20f
+            
+            imageView.animate()
+                .scaleX(1.25f)
+                .scaleY(1.25f)
+                .translationX(panX)
+                .translationY(panY)
+                .setDuration(10000) // Long duration for slow, meditative movement
+                .setInterpolator(android.view.animation.LinearInterpolator())
+                .start()
+
             // 1. Smooth fade in for the black background and meditative image
             transitionOverlay.animate().alpha(1f).setDuration(800).start()
             imageView.animate().alpha(1f).setDuration(800).start()

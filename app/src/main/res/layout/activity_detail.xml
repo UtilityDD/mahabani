@@ -45,22 +45,22 @@
                 android:id="@+id/textViewHeading"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="24dp"
                 android:gravity="center_horizontal"
                 style="@style/ChapterDetailHeading.TextView"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
                 tools:text="Chapter Title" />
 
             <TextView
                 android:id="@+id/textViewDate"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="12dp"
                 android:gravity="center_horizontal"
+                style="@style/ChapterDetailMetadata.TextView"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
-                android:textAppearance="?attr/textAppearanceBody2"
                 tools:text="January 1, 2024" />
 
             <TextView
@@ -69,9 +69,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:gravity="center_horizontal"
+                style="@style/ChapterDetailMetadata.TextView"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
-                android:textAppearance="?attr/textAppearanceBody2"
                 tools:text="Writer Name" />
 
             <com.google.android.material.divider.MaterialDivider
@@ -89,6 +89,8 @@
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"                
                 style="@style/ChapterBody.TextView"
+                android:includeFontPadding="false"
+                android:lineSpacingMultiplier="1.2"
                 tools:text="This is the detailed content..." />
 
             <!-- End of chapter marker -->
@@ -100,11 +102,18 @@
                 android:layout_marginEnd="16dp"/>
 
             <!-- Spacer to prevent the scroll-to-top button from covering the last line -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="80dp" />
         </LinearLayout>
     </ScrollView>
+
+    <!-- Binding Shadow (Gutter Effect) -->
+    <View
+        android:id="@+id/binding_shadow"
+        android:layout_width="12dp"
+        android:layout_height="0dp"
+        android:background="@drawable/binding_gutter_shadow"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <ImageButton
         android:id="@+id/button_scroll_to_top"
