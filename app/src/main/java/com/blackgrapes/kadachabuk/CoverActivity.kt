@@ -158,7 +158,7 @@ class CoverActivity : AppCompatActivity() {
         val searchView = findViewById<androidx.appcompat.widget.SearchView>(R.id.bookshelf_search_view)
         
         // Style the search view to be "minimal and clean"
-        val searchText = searchView.findViewById<androidx.appcompat.widget.SearchView.SearchAutoComplete>(androidx.appcompat.R.id.search_src_text)
+        val searchText = searchView.findViewById<android.widget.EditText>(androidx.appcompat.R.id.search_src_text)
         searchText.setTextColor(android.graphics.Color.WHITE)
         searchText.setHintTextColor(android.graphics.Color.parseColor("#80FFFFFF"))
         

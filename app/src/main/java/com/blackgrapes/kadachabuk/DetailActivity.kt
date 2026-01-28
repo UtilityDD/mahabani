@@ -216,8 +216,8 @@ class DetailActivity : AppCompatActivity() {
         
         // Initialize Gesture Detector for Swipe Navigation
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            private val SWIPE_THRESHOLD = 80 // Reduced slightly for better sensitivity
-            private val SWIPE_VELOCITY_THRESHOLD = 80
+            private val SWIPE_THRESHOLD = 150 // Increased to prevent accidental swipes while clicking
+            private val SWIPE_VELOCITY_THRESHOLD = 150
 
             override fun onDown(e: MotionEvent): Boolean {
                 return true // CRITICAL: Must return true to detect further gestures
@@ -1232,16 +1232,15 @@ class DetailActivity : AppCompatActivity() {
                              content.substring(end)
         }
 
-        // Robust pattern to catch: ...
-        // Consumes ALL surrounding whitespace (including newlines) to prevent double-spacing
+        // Robust pattern to catch: {{image:name.jpg|caption:text}} OR {{image:name.jpg|text}}
+        // Consumes surrounding whitespace to prevent layout "ghost lines"
         val regexWithCaption = Regex("[\\s\\r\\n]*\\{\\{image:(.*?)(?:\\|caption:|\\s*\\|\\s*)(.*?)\\}\\}", RegexOption.DOT_MATCHES_ALL)
         var processed = textWithDropCap.replace(regexWithCaption) { match ->
             val rawImageName = match.groupValues[1].trim()
             val caption = match.groupValues[2].trim()
             val resourceName = rawImageName.substringBeforeLast(".").replace("-", "_").lowercase()
-            // Use TWO SPACES + NEWLINE (  \n) for a Markdown Hard Break. 
-            // This forces the image to the next line without a paragraph gap.
-            "  \n![image](res:///$resourceName)  \n<book-caption>$caption</book-caption>  \n"
+            // Using \n\n to start/end the block, but a hard break (  \n) to keep image/caption tight
+            "\n\n![image](res:///$resourceName)  \n<book-caption>$caption</book-caption>\n\n"
         }
 
         val regexNoCaption = Regex("[\\s\\r\\n]*\\{\\{image:(.*?)\\}\\}")
@@ -1250,8 +1249,7 @@ class DetailActivity : AppCompatActivity() {
             if (raw.contains("|")) return@replace raw
             val rawImageName = match.groupValues[1].trim()
             val resourceName = rawImageName.substringBeforeLast(".").replace("-", "_").lowercase()
-            // Turn tag into implicit hard break + image
-            "  \n![image](res:///$resourceName)  \n"
+            "\n\n![image](res:///$resourceName)\n\n"
         }
 
         return processed
@@ -1430,6 +1428,8 @@ class DetailActivity : AppCompatActivity() {
         finish() // Close current chapter to keep back stack clean
     }
 
+    private var currentTtsBaseOffset = 0 // The offset in cleanContent where the current speak() started
+
     private fun startTts() {
         // Clean up markdown and custom tags
         val rawContent = intent.getStringExtra("EXTRA_DATA") ?: ""
@@ -1443,6 +1443,7 @@ class DetailActivity : AppCompatActivity() {
 
         if (cleanContent.isEmpty()) return
 
+        currentTtsBaseOffset = currentTtsOffset
         val result = textToSpeech?.speak(cleanContent.substring(currentTtsOffset), TextToSpeech.QUEUE_FLUSH, null, "ChapterContent")
         if (result == TextToSpeech.SUCCESS) {
             isTtsPlaying = true
@@ -1466,7 +1467,8 @@ class DetailActivity : AppCompatActivity() {
                 }
                 override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
                     // Update offset as it reads so we can resume from the same spot
-                    currentTtsOffset += start
+                    // 'start' is relative to the substring we passed to speak()
+                    currentTtsOffset = currentTtsBaseOffset + start
                 }
             })
         }
@@ -1476,6 +1478,35 @@ class DetailActivity : AppCompatActivity() {
         textToSpeech?.stop()
         isTtsPlaying = false
         buttonTts.setImageResource(R.drawable.ic_speaker)
+
+        // Snapping the offset to the beginning of the last read sentence
+        val rawContent = intent.getStringExtra("EXTRA_DATA") ?: ""
+        val cleanContent = rawContent
+            .replace(Regex("\\{\\{image:.*?\\}\\}"), "") // Remove custom image tags
+            .replace(Regex("<.*?>"), "") // Remove HTML tags
+            .replace(Regex("[#*`_~]"), " ") // Replace markdown chars with space for natural pauses
+            .replace(Regex("\\[(.*?)\\]\\(.*?\\)"), "$1") // Simplify markdown links to just text
+            .replace(Regex("\\s+"), " ") // Normalize whitespace
+            .trim()
+
+        if (cleanContent.isNotEmpty() && currentTtsOffset > 0) {
+            val locale = when (languageCode) {
+                "bn" -> Locale("bn", "IN")
+                "hi" -> Locale("hi", "IN")
+                else -> Locale.US
+            }
+            val iterator = java.text.BreakIterator.getSentenceInstance(locale)
+            iterator.setText(cleanContent)
+            
+            // Find the sentence start index that is <= currentTtsOffset
+            val sentenceStart = iterator.preceding(currentTtsOffset.coerceAtMost(cleanContent.length))
+            if (sentenceStart != java.text.BreakIterator.DONE) {
+                currentTtsOffset = sentenceStart
+            } else {
+                currentTtsOffset = 0 // Fallback to beginning
+            }
+            Log.d("TTS", "Paused at $sentenceStart. Will resume from start of sentence.")
+        }
     }
 
     private fun stopTts() {
