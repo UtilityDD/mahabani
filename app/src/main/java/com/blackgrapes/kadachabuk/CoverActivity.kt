@@ -733,19 +733,19 @@ class CoverActivity : AppCompatActivity() {
                 .scaleY(1.25f)
                 .translationX(panX)
                 .translationY(panY)
-                .setDuration(10000) // Long duration for slow, meditative movement
+                .setDuration(6000) // Faster meditative movement
                 .setInterpolator(android.view.animation.LinearInterpolator())
                 .start()
 
             // 1. Smooth fade in for the black background and meditative image
-            transitionOverlay.animate().alpha(1f).setDuration(800).start()
-            imageView.animate().alpha(1f).setDuration(800).start()
+            transitionOverlay.animate().alpha(1f).setDuration(500).start()
+            imageView.animate().alpha(1f).setDuration(500).start()
             
             // CRITICAL: Hide bookshelf background immediately to prevent any flicker/bleeding
             bookshelfContainer.animate().alpha(0f).setDuration(400).start()
             
             // Wait for fade in to complete fully (opaque enough to hide background)
-            delay(800)
+            delay(500)
             
             // Remove the cover overlay from background while fully obscured
             safeRemoveView(coverOverlay, rootView)
@@ -754,17 +754,15 @@ class CoverActivity : AppCompatActivity() {
             // Complete the fade in wait
             delay(200)
             
-            // 2. Display the image for a dedicated meditative moment (shorter now, as About page extends it)
-            delay(1500)
+            // 2. Display the image for a dedicated meditative moment
+            delay(800)
             
             // 3. Show the cinematic About Page overlay
             showAboutPageOverlay(bookId, langCode) {
                 // Navigate directly to MainActivity when user clicks "Continue"
                 navigateToMain(bookId)
                 
-                // Cleanup the transition system
-                safeRemoveView(transitionOverlay, rootView)
-                if (activeTransitionOverlay == transitionOverlay) activeTransitionOverlay = null
+                // Cleanup is handled in onResume to prevent jerky transition
             }
         }
     }
@@ -859,10 +857,43 @@ class CoverActivity : AppCompatActivity() {
             continueButton.setTextColor(android.graphics.Color.WHITE)
             
             continueButton.setOnClickListener {
+                // 1. Fade out the About modal
                 aboutOverlay.animate().alpha(0f).setDuration(400).withEndAction {
                     safeRemoveView(aboutOverlay, rootView)
                 }.start()
-                onFinished()
+
+                // 2. Access the background transition overlay to show Lottie
+                activeTransitionOverlay?.let { transitionView ->
+                    val frameLayout = transitionView as? android.widget.FrameLayout ?: return@let
+                    
+                    // Find the existing Thakur image and fade it out
+                    for (i in 0 until frameLayout.childCount) {
+                        val child = frameLayout.getChildAt(i)
+                        if (child is ImageView) {
+                            child.animate().alpha(0f).setDuration(400).start()
+                            break
+                        }
+                    }
+
+                    // 3. Add Lottie animation (mirroring MainActivity's loader)
+                    val lottieView = com.airbnb.lottie.LottieAnimationView(this@CoverActivity)
+                    val lottieParams = android.widget.FrameLayout.LayoutParams(dpToPx(150f), dpToPx(150f))
+                    lottieParams.gravity = android.view.Gravity.CENTER
+                    lottieView.layoutParams = lottieParams
+                    lottieView.setAnimation(R.raw.book)
+                    lottieView.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
+                    lottieView.playAnimation()
+                    lottieView.alpha = 0f
+                    
+                    frameLayout.addView(lottieView)
+                    lottieView.animate().alpha(1f).setDuration(400).start()
+                }
+
+                // 4. Brief delay before navigation to ensure Lottie is visible
+                lifecycleScope.launch {
+                    delay(500)
+                    onFinished()
+                }
             }
             contentLayout.addView(continueButton)
         }

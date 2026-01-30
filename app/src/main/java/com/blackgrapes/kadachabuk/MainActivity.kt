@@ -1385,24 +1385,29 @@ class MainActivity : AppCompatActivity() {
 
         val mainLayout = findViewById<View>(R.id.main) ?: return
         
+        val loadingBackground = findViewById<View>(R.id.loading_background)
+        
         when (themeStr) {
             THEME_SEPIA -> {
-                mainLayout.setBackgroundColor(ContextCompat.getColor(this, R.color.reader_sepia_bg))
+                val color = ContextCompat.getColor(this, R.color.reader_sepia_bg)
+                mainLayout.setBackgroundColor(color)
+                loadingBackground?.setBackgroundColor(color)
             }
             THEME_MIDNIGHT -> {
-                mainLayout.setBackgroundColor(ContextCompat.getColor(this, R.color.reader_midnight_bg))
+                val color = ContextCompat.getColor(this, R.color.reader_midnight_bg)
+                mainLayout.setBackgroundColor(color)
+                loadingBackground?.setBackgroundColor(color)
             }
             else -> {
-                // THEME_SYSTEM - use default app theme colors
+                // THEME_LIGHT or default - use colorSurface
                 val typedValue = TypedValue()
-                
-                // Use colorSurface for background instead of colorBackground for better compatibility
-                if (theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)) {
-                    mainLayout.setBackgroundColor(typedValue.data)
+                val color = if (theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)) {
+                    typedValue.data
                 } else {
-                    // Fallback to a safe default
-                    mainLayout.setBackgroundColor(ContextCompat.getColor(this, android.R.color.background_light))
+                    ContextCompat.getColor(this, android.R.color.background_light)
                 }
+                mainLayout.setBackgroundColor(color)
+                loadingBackground?.setBackgroundColor(color)
             }
         }
     }
