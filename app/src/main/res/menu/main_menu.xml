@@ -35,7 +35,7 @@
                 android:title="Videos" />
             <item
                 android:id="@+id/action_about"
-                android:title="About Kada Chabuk" />
+                android:title="About this Book" />
             <item
                 android:id="@+id/action_share_app"
                 android:title="Share App" />

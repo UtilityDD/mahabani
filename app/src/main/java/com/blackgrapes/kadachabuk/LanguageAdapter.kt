@@ -39,7 +39,9 @@ class LanguageAdapter(
             itemView.setOnClickListener {
                 if (adapterPosition != RecyclerView.NO_POSITION) {
                     val (name, code) = languages[adapterPosition]
-                    onLanguageSelected(code, name)
+                    if (code != "as" && code != "od") {
+                        onLanguageSelected(code, name)
+                    }
                 }
             }
             deleteButton.setOnClickListener {
@@ -55,6 +57,17 @@ class LanguageAdapter(
             itemView.isSelected = (code == currentSelectedCode)
             downloadStatusIcon.isVisible = isDownloaded
             deleteButton.isVisible = isDownloaded
+
+            // Disabled Assamese (as) and Odiya (od) as per request
+            if (code == "as" || code == "od") {
+                itemView.alpha = 0.4f
+                itemView.isEnabled = false
+                itemView.isClickable = false
+            } else {
+                itemView.alpha = 1.0f
+                itemView.isEnabled = true
+                itemView.isClickable = true
+            }
         }
     }
 }

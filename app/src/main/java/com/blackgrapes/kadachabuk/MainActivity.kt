@@ -452,7 +452,7 @@ class MainActivity : AppCompatActivity() {
         uiScope.launch {
             val downloadedCodes = bookViewModel.getDownloadedLanguageCodes(currentBookId)
             val languageAdapter = LanguageAdapter(
-                languages = languageNames.zip(languageCodes).toList(),
+                languages = languageNames.zip(languageCodes).filter { it.second != "tm" }.toList(),
                 downloadedLanguageCodes = downloadedCodes,
                 currentSelectedCode = savedLangCode,
                 onLanguageSelected = { langCode, langName ->

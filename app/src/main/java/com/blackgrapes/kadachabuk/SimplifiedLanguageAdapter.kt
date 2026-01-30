@@ -41,8 +41,24 @@ class SimplifiedLanguageAdapter(
             holder.cardView.strokeWidth = 0
         }
 
+        // Disabled Assamese (as) and Odiya (od) as per request
+        if (code == "as" || code == "od") {
+            holder.itemView.alpha = 0.4f
+            holder.itemView.isEnabled = false
+            holder.itemView.isClickable = false
+            // Also disable the card stroke potentially to make it look really disabled if needed, 
+            // but alpha is usually enough.
+        } else {
+            holder.itemView.alpha = 1.0f
+            holder.itemView.isEnabled = true
+            holder.itemView.isClickable = true
+        }
+
         holder.itemView.setOnClickListener {
-            onLanguageSelected(code)
+            // extra check just in case
+            if (code != "as" && code != "od") {
+                onLanguageSelected(code)
+            }
         }
     }
 

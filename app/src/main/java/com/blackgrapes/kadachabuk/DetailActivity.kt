@@ -111,6 +111,7 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var matchCountTextView: TextView
     private lateinit var bookId: String
     private lateinit var markwon: Markwon
+    private lateinit var breathingOrb: BreathingOrbView // Custom visualizer
 
     private var chapterHeading: String? = null
     private var chapterDate: String? = null
@@ -171,84 +172,12 @@ class DetailActivity : AppCompatActivity() {
         imageViewHeader = findViewById(R.id.imageViewHeader)
         
         buttonTts = findViewById(R.id.button_tts)
+        breathingOrb = findViewById(R.id.breathingOrb) // Initialize orb
+        buttonTts.alpha = 0.5f // Start with lower alpha to indicate "warming up"
 
         // Initialize TextToSpeech
-        textToSpeech = TextToSpeech(this) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                val locale = when (languageCode) {
-                    "bn" -> Locale("bn", "IN")
-                    "hi" -> Locale("hi", "IN")
-                    else -> Locale.US
-                }
-                textToSpeech?.setLanguage(locale)
-                textToSpeech?.setSpeechRate(0.9f) // More natural, slightly slower pace
-                
-                // Try to find a male voice for the current locale
-                val voices = textToSpeech?.voices
-                if (voices != null) {
-                    val maleVoice = voices.find { voice ->
-                        voice.locale.language == locale.language && 
-                        voice.locale.country == locale.country &&
-                        (voice.name.lowercase().contains("male") || 
-                         voice.name.lowercase().contains("-x-") && voice.name.lowercase().contains("-a-") || // Many Google male voices have 'a' or 'd'
-                         voice.name.lowercase().contains("-d-")) 
-                    }
-                    if (maleVoice != null) {
-                        textToSpeech?.voice = maleVoice
-                        Log.d("TTS", "Selected male voice: ${maleVoice.name}")
-                    }
-                }
-                isTtsInitialized = true
-                Log.d("TTS", "Initialization success for $languageCode")
-                
-                // --- Set Utterance Progress Listener Once ---
-                textToSpeech?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) {
-                        if (utteranceId == lastQueuedUtteranceId) {
-                            runOnUiThread {
-                                isTtsPlaying = false
-                                currentTtsOffset = 0 // Reset on completion
-                                buttonTts.setImageResource(R.drawable.ic_speaker)
-                                (textViewData.text as? Spannable)?.removeSpan(ttsHighlightSpan)
-                            }
-                        }
-                    }
-                    override fun onError(utteranceId: String?) {
-                        runOnUiThread {
-                            isTtsPlaying = false
-                            buttonTts.setImageResource(R.drawable.ic_speaker)
-                        }
-                    }
-                    override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
-                        runOnUiThread {
-                            val map = phoneticToVisualMap ?: return@runOnUiThread
-                            val phoneticBaseOffset = utteranceId?.toIntOrNull() ?: 0
-                            val phoneticCurrentOffset = (phoneticBaseOffset + start).coerceAtMost(map.size - 1)
-                            val phoneticEndOffset = (phoneticBaseOffset + end).coerceAtMost(map.size - 1)
-                            
-                            // Translate phonetic offsets to visual ones
-                            val visualStart = if (phoneticCurrentOffset >= 0) map[phoneticCurrentOffset] else 0
-                            val visualEnd = if (phoneticEndOffset >= 0) map[phoneticEndOffset] else visualStart
-                            
-                            currentTtsOffset = visualStart
-                            
-                            // Apply Visual Highlight
-                            val spannable = textViewData.text as? Spannable
-                            if (spannable != null) {
-                                spannable.removeSpan(ttsHighlightSpan)
-                                if (visualStart >= 0 && visualEnd <= spannable.length) {
-                                    spannable.setSpan(ttsHighlightSpan, visualStart, visualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                                    scrollToOffset(visualStart, verticalBias = 0.6f)
-                                }
-                            }
-                        }
-                    }
-                })
-            } else {
-                Log.e("TTS", "Initialization failed")
-            }
-        }
+        initializeTts()
+
 
         buttonTts.setOnClickListener {
             if (!isTtsInitialized) {
@@ -357,7 +286,20 @@ class DetailActivity : AppCompatActivity() {
         markwon = Markwon.builder(this)
             .usePlugin(TablePlugin.create(this))
             .usePlugin(LinkifyPlugin.create())
+            .usePlugin(io.noties.markwon.SoftBreakAddsNewLinePlugin.create())
             .usePlugin(io.noties.markwon.html.HtmlPlugin.create { plugin ->
+                plugin.addHandler(object : io.noties.markwon.html.TagHandler() {
+                    override fun supportedTags() = setOf("book-center")
+                    override fun handle(visitor: io.noties.markwon.MarkwonVisitor, renderer: io.noties.markwon.html.MarkwonHtmlRenderer, tag: io.noties.markwon.html.HtmlTag) {
+                        visitor.builder().setSpan(
+                            android.text.style.AlignmentSpan.Standard(android.text.Layout.Alignment.ALIGN_CENTER),
+                            tag.start(),
+                            tag.end(),
+                            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    }
+                })
+
                 plugin.addHandler(object : io.noties.markwon.html.TagHandler() {
                     override fun handle(visitor: io.noties.markwon.MarkwonVisitor, renderer: io.noties.markwon.html.MarkwonHtmlRenderer, tag: io.noties.markwon.html.HtmlTag) {
                          val spans = arrayOf(
@@ -1210,7 +1152,9 @@ class DetailActivity : AppCompatActivity() {
                 textViewDate.setTextColor(metaColor)
                 textViewWriter.setTextColor(metaColor)
                 bindingShadow?.visibility = View.VISIBLE
+                bindingShadow?.visibility = View.VISIBLE
                 bindingShadow?.alpha = 1.0f
+                breathingOrb.setBaseColor(android.graphics.Color.parseColor("#FFD700")) // Gold for Sepia
             }
             THEME_MIDNIGHT -> {
                 scrollView.setBackgroundColor(ContextCompat.getColor(this, R.color.reader_midnight_bg))
@@ -1220,6 +1164,7 @@ class DetailActivity : AppCompatActivity() {
                 textViewDate.setTextColor(metaColor)
                 textViewWriter.setTextColor(metaColor)
                 bindingShadow?.visibility = View.GONE
+                breathingOrb.setBaseColor(android.graphics.Color.parseColor("#00FFFF")) // Cyan for Midnight
             }
             else -> {
                 // THEME_LIGHT/DEFAULT
@@ -1249,6 +1194,7 @@ class DetailActivity : AppCompatActivity() {
                 textViewDate.alpha = 0.6f
                 textViewWriter.setTextColor(onSurfaceColor)
                 textViewWriter.alpha = 0.6f
+                breathingOrb.setBaseColor(android.graphics.Color.parseColor("#9C27B0")) // Purple for Light
             }
         }
 
@@ -1262,13 +1208,54 @@ class DetailActivity : AppCompatActivity() {
     }
 
     private fun processCustomImageTags(content: String): String {
-        // Find the first letter or digit to apply drop cap
+        // SMART DROP CAP DETECTION
+        // We must find the first "real" text character, skipping over:
+        // 1. HTML tags: <...>
+        // 2. Custom handlebars: {{...}}
+        // 3. HTML entities: &...;
+        
         var firstValidCharIndex = -1
-        for (i in 0 until content.length) {
-            if (content[i].isLetter() || content[i].isDigit()) {
+        var i = 0
+        val len = content.length
+        
+        while (i < len) {
+            val c = content[i]
+            
+            // Check for start of skipped blocks
+            if (c == '<') {
+                // Skip until '>'
+                val endTag = content.indexOf('>', i)
+                if (endTag != -1) {
+                    i = endTag + 1
+                    continue
+                }
+            }
+            
+            if (c == '{' && i + 1 < len && content[i+1] == '{') {
+                // Skip until '}}'
+                val endCurly = content.indexOf("}}", i)
+                if (endCurly != -1) {
+                    i = endCurly + 2
+                    continue
+                }
+            }
+            
+            if (c == '&') {
+                // Skip until ';' (assuming generic entity)
+                val endEntity = content.indexOf(';', i)
+                if (endEntity != -1 && endEntity - i < 10) { // Safety limit for entity length
+                    i = endEntity + 1
+                    continue
+                }
+            }
+            
+            // If we are here, we are outside known tags. 
+            // Check if it's a valid Drop Cap candidate.
+            if (c.isLetter() || c.isDigit()) {
                 firstValidCharIndex = i
                 break
             }
+            i++
         }
 
         var textWithDropCap = content
@@ -1291,9 +1278,17 @@ class DetailActivity : AppCompatActivity() {
             val rawImageName = match.groupValues[1].trim()
             val caption = match.groupValues[2].trim()
             val resourceName = rawImageName.substringBeforeLast(".").replace("-", "_").lowercase()
-            // Using \n\n to start/end the block, but a hard break (  \n) to keep image/caption tight
-            "\n\n![image](res:///$resourceName)  \n<book-caption>$caption</book-caption>\n\n"
+            // Using space to start the block (inline-like behavior for zero top margin), and \n\n before caption for paragraph break
+            " ![image](res:///$resourceName)\n\n<book-caption>$caption</book-caption>\n\n"
         }
+
+        // Ensure <center> tags are surrounded by newlines for proper block parsing
+        // Handle both unescaped and escaped variations and normalize to custom <book-center> tag
+        processed = processed.replace("<center>", "\n\n<book-center>\n")
+                            .replace("&lt;center&gt;", "\n\n<book-center>\n")
+                            .replace("</center>", "\n</book-center>\n\n")
+                            .replace("&lt;/center&gt;", "\n</book-center>\n\n")
+
 
         val regexNoCaption = Regex("[\\s\\r\\n]*\\{\\{image:(.*?)\\}\\}")
         processed = processed.replace(regexNoCaption) { match ->
@@ -1301,7 +1296,7 @@ class DetailActivity : AppCompatActivity() {
             if (raw.contains("|")) return@replace raw
             val rawImageName = match.groupValues[1].trim()
             val resourceName = rawImageName.substringBeforeLast(".").replace("-", "_").lowercase()
-            "\n\n![image](res:///$resourceName)\n\n"
+            " ![image](res:///$resourceName)\n\n"
         }
 
         return processed
@@ -1538,6 +1533,15 @@ class DetailActivity : AppCompatActivity() {
     }
 
     private fun startTts() {
+        if (!isTtsInitialized) {
+            Toast.makeText(this, "Speech engine is warming up...", Toast.LENGTH_SHORT).show()
+            // Optional: Trigger a retry if it's stuck?
+            if (textToSpeech == null && ttsRetryCount < MAX_TTS_RETRIES) {
+                 initializeTts()
+            }
+            return
+        }
+
         val phoneticContent = prepareSpeechContent()
         if (phoneticContent.isEmpty()) return
         val map = phoneticToVisualMap ?: return
@@ -1590,12 +1594,14 @@ class DetailActivity : AppCompatActivity() {
         }
 
         isTtsPlaying = true
+        breathingOrb.setTalking(true) // Start visualizer
         buttonTts.setImageResource(R.drawable.ic_pause)
     }
 
     private fun pauseTts() {
         textToSpeech?.stop()
         isTtsPlaying = false
+        breathingOrb.setTalking(false) // Stop visualizer
         buttonTts.setImageResource(R.drawable.ic_speaker)
         
         // Clear highlight on pause
@@ -1627,6 +1633,7 @@ class DetailActivity : AppCompatActivity() {
     private fun stopTts() {
         textToSpeech?.stop()
         isTtsPlaying = false
+        breathingOrb.setTalking(false) // Stop visualizer
         currentTtsOffset = 0
         buttonTts.setImageResource(R.drawable.ic_speaker)
         // Clear highlight
@@ -1634,8 +1641,143 @@ class DetailActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        breathingOrb.setTalking(false) // Cleanup animation
         textToSpeech?.stop()
         textToSpeech?.shutdown()
         super.onDestroy()
+    }
+    private var ttsRetryCount = 0
+    private val MAX_TTS_RETRIES = 3
+
+    private fun initializeTts() {
+        textToSpeech = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val locale = when (languageCode) {
+                    "bn" -> Locale("bn", "IN")
+                    "hi" -> Locale("hi", "IN")
+                    else -> Locale.US
+                }
+                
+                val result = textToSpeech?.setLanguage(locale)
+                
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.e("TTS", "Language data missing or not supported")
+                    showMissingLanguageDialog()
+                } else {
+                    textToSpeech?.setSpeechRate(0.9f)
+                    
+                    // Try to find a male voice for the current locale
+                    val voices = textToSpeech?.voices
+                    if (voices != null) {
+                        val maleVoice = voices.find { voice ->
+                            voice.locale.language == locale.language && 
+                            voice.locale.country == locale.country &&
+                            (voice.name.lowercase().contains("male") || 
+                             voice.name.lowercase().contains("-x-") && voice.name.lowercase().contains("-a-") ||
+                             voice.name.lowercase().contains("-d-")) 
+                        }
+                        if (maleVoice != null) {
+                            textToSpeech?.voice = maleVoice
+                            Log.d("TTS", "Selected male voice: ${maleVoice.name}")
+                        }
+                    }
+                    isTtsInitialized = true
+                    Log.d("TTS", "Initialization success for $languageCode")
+                    
+                    // Reset retry count on success
+                    ttsRetryCount = 0
+                    
+                    // Update UI to show ready state (optional visual cue)
+                    runOnUiThread {
+                        buttonTts.alpha = 1.0f 
+                        // Ensure orb is reset
+                        breathingOrb.setTalking(false)
+                    }
+                }
+                
+                // --- Set Utterance Progress Listener Once ---
+                textToSpeech?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) {
+                        if (utteranceId == lastQueuedUtteranceId) {
+                            runOnUiThread {
+                                isTtsPlaying = false
+                                currentTtsOffset = 0 // Reset on completion
+                                buttonTts.setImageResource(R.drawable.ic_speaker)
+                                (textViewData.text as? Spannable)?.removeSpan(ttsHighlightSpan)
+                            }
+                        }
+                    }
+                    override fun onError(utteranceId: String?) {
+                        runOnUiThread {
+                            isTtsPlaying = false
+                            buttonTts.setImageResource(R.drawable.ic_speaker)
+                        }
+                    }
+                    override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                        runOnUiThread {
+                            val map = phoneticToVisualMap ?: return@runOnUiThread
+                            val phoneticBaseOffset = utteranceId?.toIntOrNull() ?: 0
+                            val phoneticCurrentOffset = (phoneticBaseOffset + start).coerceAtMost(map.size - 1)
+                            val phoneticEndOffset = (phoneticBaseOffset + end).coerceAtMost(map.size - 1)
+                            
+                            
+                            // Translate phonetic offsets to visual ones
+                            val visualStart = if (phoneticCurrentOffset >= 0) map[phoneticCurrentOffset] else 0
+                            val visualEnd = if (phoneticEndOffset >= 0) map[phoneticEndOffset] else visualStart
+                            
+                            currentTtsOffset = visualStart
+
+                            // Trigger visualizer pulse for this word/chunk
+                            breathingOrb.pulse()
+                            
+                            // Apply Visual Highlight
+                            val spannable = textViewData.text as? Spannable
+                            if (spannable != null) {
+                                spannable.removeSpan(ttsHighlightSpan)
+                                if (visualStart >= 0 && visualEnd <= spannable.length) {
+                                    spannable.setSpan(ttsHighlightSpan, visualStart, visualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                    scrollToOffset(visualStart, verticalBias = 0.6f)
+                                }
+                            }
+                        }
+                    }
+                })
+            } else {
+                Log.e("TTS", "Initialization failed")
+                if (ttsRetryCount < MAX_TTS_RETRIES) {
+                    ttsRetryCount++
+                    Log.d("TTS", "Retrying initialization ($ttsRetryCount/$MAX_TTS_RETRIES)")
+                    // Retry with a slight delay
+                    CoroutineScope(Dispatchers.Main).launch {
+                        delay(2000)
+                        initializeTts()
+                    }
+                } else {
+                    runOnUiThread {
+                        Toast.makeText(this@DetailActivity, "Speech engine failed to initialize.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showMissingLanguageDialog() {
+        runOnUiThread {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Voice Data Missing")
+                .setMessage("The high-quality voice data for this language is missing. Would you like to install it?")
+                .setPositiveButton("Install") { _, _ ->
+                    val installIntent = Intent()
+                    installIntent.action = TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA
+                    try {
+                        startActivity(installIntent)
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Could not open TTS settings.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
     }
 }

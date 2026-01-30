@@ -927,7 +927,7 @@ class CoverActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             val languageAdapter = SimplifiedLanguageAdapter(
-                languages = languageNamesArr.zip(languageCodesArr).toList(),
+                languages = languageNamesArr.zip(languageCodesArr).filter { it.second != "tm" }.toList(),
                 currentSelectedCode = savedLangCode,
                 onLanguageSelected = { langCode ->
                     saveLanguagePreference(langCode)
