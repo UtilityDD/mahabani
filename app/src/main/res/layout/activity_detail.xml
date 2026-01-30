@@ -32,6 +32,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
+            android:clipChildren="false"
             android:paddingBottom="16dp">
 
             <!-- Spacer to push content below the parallax image -->
@@ -88,9 +89,11 @@
                 android:layout_marginTop="16dp"
                 android:paddingStart="24dp"
                 android:paddingEnd="24dp"
+                android:paddingTop="12dp"
+                android:clipToPadding="false"
                 style="@style/ChapterBody.TextView"
                 android:fontFamily="@font/tiro_bangla_regular"
-                android:lineSpacingMultiplier="1.2"
+                android:lineSpacingMultiplier="1.6"
                 android:shadowColor="#00000000"
                 android:shadowDx="0"
                 android:shadowDy="0"

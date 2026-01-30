@@ -365,13 +365,19 @@ class DetailActivity : AppCompatActivity() {
 
                             override fun getSize(paint: android.graphics.Paint, text: CharSequence?, start: Int, end: Int, fm: android.graphics.Paint.FontMetricsInt?): Int {
                                 val originalSize = paint.textSize
-                                paint.textSize = originalSize * 2.0f
+                                val originalFm = paint.fontMetricsInt // Capture original line metrics
+                                
+                                paint.textSize = originalSize * 2.0f // 2x Drop Cap
                                 if (galada != null) paint.typeface = galada
                                 mWidth = paint.measureText(text, start, end).toInt()
+                                
                                 if (fm != null) {
-                                    val newFm = paint.fontMetricsInt
-                                    fm.ascent = newFm.ascent
-                                    fm.top = newFm.top
+                                    // Full neutralization: Force the drop cap to use the original line's metrics.
+                                    // This prevents the line height from expanding, keeping line 1 and 2 spacing perfect.
+                                    fm.ascent = originalFm.ascent
+                                    fm.top = originalFm.top
+                                    fm.descent = originalFm.descent
+                                    fm.bottom = originalFm.bottom
                                 }
                                 paint.textSize = originalSize
                                 return mWidth
@@ -381,11 +387,15 @@ class DetailActivity : AppCompatActivity() {
                                 val originalSize = paint.textSize
                                 val originalColor = paint.color
                                 val originalTypeface = paint.typeface
+                                
                                 paint.textSize = originalSize * 2.0f
                                 paint.color = color
                                 if (galada != null) paint.typeface = galada
-                                val verticalShift = originalSize * 0.15f 
-                                canvas.drawText(text!!, start, end, x, y + verticalShift, paint)
+                                
+                                // Draw text at the baseline (y). Since we constrained descent in getSize,
+                                // the large font will naturally extend upwards due to large negative ascent.
+                                canvas.drawText(text!!, start, end, x, y.toFloat(), paint)
+                                
                                 paint.textSize = originalSize
                                 paint.color = originalColor
                                 paint.typeface = originalTypeface
@@ -1519,6 +1529,9 @@ class DetailActivity : AppCompatActivity() {
     private fun prepareSpeechContent(): String {
         val visualContent = textViewData.text.toString()
         if (visualContent.isEmpty()) return ""
+        
+        // Debug: Log first 200 chars to see format
+        Log.d("TTS_DEBUG", "Visual content sample: ${visualContent.take(200).replace("\n", "[NL]")}")
 
         val phoneticBuilder = StringBuilder()
         val mappingList = mutableListOf<Int>()
@@ -1557,6 +1570,14 @@ class DetailActivity : AppCompatActivity() {
             if (char == '?') {
                 phoneticBuilder.append("? , ")
                 repeat(4) { mappingList.add(i) }
+                i++
+                continue
+            }
+            
+            // 3. Line Ending Pause (newline)
+            if (char == '\n') {
+                phoneticBuilder.append(" , ")
+                repeat(3) { mappingList.add(i) }
                 i++
                 continue
             }
