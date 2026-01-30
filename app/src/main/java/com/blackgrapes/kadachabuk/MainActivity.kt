@@ -484,10 +484,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showDownloadConfirmationDialog(langName: String, onConfirm: () -> Unit) {
+        val book = bookViewModel.libraryBooks.value?.find { it.bookId == bookViewModel.currentBookId }
+        val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        val appLang = sharedPreferences.getString("selected_language_code", "en") ?: "en"
+        val bookTitle = book?.getLocalizedName(appLang) ?: "The book"
+
         val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("Download in $langName?") // Corrected typo from "Dowmload"
+            .setTitle("Download in $langName?") 
             .setMessage(HtmlCompat.fromHtml(
-                "<i>Kada Chabuk</i> in '$langName' are not downloaded. Would you like to download them now? This may take a few moments depending on your network speed.",
+                "<i>$bookTitle</i> in $langName is not downloaded. Download now?",
                 HtmlCompat.FROM_HTML_MODE_LEGACY
             ))
             .setNegativeButton("Cancel", null)
