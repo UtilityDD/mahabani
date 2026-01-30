@@ -432,7 +432,8 @@ class CoverActivity : AppCompatActivity() {
         textView.setTextColor(android.graphics.Color.parseColor("#E0C090")) // Gold text
         textView.textSize = 16f
         textView.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        textView.setShadowLayer(4f, 2f, 2f, android.graphics.Color.BLACK)
+        // Sharper shadow for embossed look
+        textView.setShadowLayer(2f, 1f, 1f, android.graphics.Color.BLACK)
         textView.gravity = android.view.Gravity.CENTER
         textView.maxLines = 2
         textView.ellipsize = android.text.TextUtils.TruncateAt.END
@@ -446,6 +447,8 @@ class CoverActivity : AppCompatActivity() {
             subTextView.setTextColor(android.graphics.Color.parseColor("#B0A080")) // Muted gold
             subTextView.textSize = 11f
             subTextView.typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.ITALIC)
+            // Add shadow for consistency
+            subTextView.setShadowLayer(2f, 1f, 1f, android.graphics.Color.BLACK)
             labelContainer.addView(subTextView)
         }
         
@@ -471,6 +474,8 @@ class CoverActivity : AppCompatActivity() {
             yearSpineText.typeface = android.graphics.Typeface.DEFAULT_BOLD
             yearSpineText.gravity = android.view.Gravity.CENTER_HORIZONTAL
             yearSpineText.setLineSpacing(0f, 0.85f) // Tighter spacing for vertical stack
+            // Add shadow for embossed look
+            yearSpineText.setShadowLayer(2f, 1f, 1f, android.graphics.Color.BLACK)
             
             cardView.addView(yearSpineText)
         }

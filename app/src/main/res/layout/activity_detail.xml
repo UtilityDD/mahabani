@@ -59,8 +59,8 @@
                 android:layout_marginTop="12dp"
                 android:gravity="center_horizontal"
                 style="@style/ChapterDetailMetadata.TextView"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
                 tools:text="January 1, 2024" />
 
             <TextView
@@ -70,27 +70,32 @@
                 android:layout_marginTop="4dp"
                 android:gravity="center_horizontal"
                 style="@style/ChapterDetailMetadata.TextView"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
                 tools:text="Writer Name" />
 
             <com.google.android.material.divider.MaterialDivider
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"/>
+                android:layout_marginStart="24dp"
+                android:layout_marginEnd="24dp"/>
 
             <TextView
                 android:id="@+id/textViewData"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"                
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
                 style="@style/ChapterBody.TextView"
-                android:includeFontPadding="false"
+                android:fontFamily="@font/tiro_bangla_regular"
                 android:lineSpacingMultiplier="1.2"
+                android:shadowColor="#00000000"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="1"
+                android:breakStrategy="high_quality"
                 tools:text="This is the detailed content..." />
 
             <!-- End of chapter marker -->
@@ -98,8 +103,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"/>
+                android:layout_marginStart="24dp"
+                android:layout_marginEnd="24dp"/>
 
             <!-- Spacer to prevent the scroll-to-top button from covering the last line -->
         </LinearLayout>

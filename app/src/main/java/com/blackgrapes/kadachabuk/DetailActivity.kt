@@ -70,7 +70,7 @@ private const val FONT_PREFS = "FontPrefs"
 private const val KEY_FONT_SIZE = "fontSize"
 private const val DEFAULT_FONT_SIZE = 18f
 private const val KEY_LINE_SPACING = "lineSpacing"
-private const val DEFAULT_LINE_SPACING = 1.2f
+private const val DEFAULT_LINE_SPACING = 1.7f
 private const val BOOKMARK_PREFS = "BookmarkPrefs"
 private const val READER_THEME_PREFS = "ReaderThemePrefs"
 private const val KEY_READER_THEME = "readerTheme"
@@ -288,6 +288,36 @@ class DetailActivity : AppCompatActivity() {
             .usePlugin(LinkifyPlugin.create())
             .usePlugin(io.noties.markwon.SoftBreakAddsNewLinePlugin.create())
             .usePlugin(io.noties.markwon.html.HtmlPlugin.create { plugin ->
+                plugin.addHandler(object : io.noties.markwon.html.TagHandler() {
+                    override fun supportedTags() = setOf("book-image")
+                    override fun handle(visitor: io.noties.markwon.MarkwonVisitor, renderer: io.noties.markwon.html.MarkwonHtmlRenderer, tag: io.noties.markwon.html.HtmlTag) {
+                        visitor.builder().setSpan(
+                            object : android.text.style.LineHeightSpan {
+                                override fun chooseHeight(text: CharSequence, start: Int, end: Int, spanstartv: Int, v: Int, fm: android.graphics.Paint.FontMetricsInt) {
+                                    // Counteract the lineSpacingMultiplier to prevent huge gaps above/below images
+                                    val multiplier = textViewData.lineSpacingMultiplier
+                                    if (multiplier > 1.0f) {
+                                        val originalHeight = fm.descent - fm.ascent
+                                        // We want the final rendered height to be roughly 'originalHeight'.
+                                        // Since TextView renders as (height * multiplier), we must shrink the input height.
+                                        val targetHeight = (originalHeight / multiplier).toInt()
+                                        val center = (fm.descent + fm.ascent) / 2
+                                        val halfHeight = targetHeight / 2
+                                        
+                                        fm.ascent = center - halfHeight
+                                        fm.descent = center + halfHeight
+                                        fm.top = fm.ascent
+                                        fm.bottom = fm.descent
+                                    }
+                                }
+                            },
+                            tag.start(),
+                            tag.end(),
+                            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    }
+                })
+
                 plugin.addHandler(object : io.noties.markwon.html.TagHandler() {
                     override fun supportedTags() = setOf("book-center")
                     override fun handle(visitor: io.noties.markwon.MarkwonVisitor, renderer: io.noties.markwon.html.MarkwonHtmlRenderer, tag: io.noties.markwon.html.HtmlTag) {
@@ -1104,6 +1134,14 @@ class DetailActivity : AppCompatActivity() {
         val lineSpacing = sharedPreferences.getFloat(KEY_LINE_SPACING, DEFAULT_LINE_SPACING)
         textViewData.textSize = fontSize
         textViewData.setLineSpacing(0f, lineSpacing)
+
+        // Programmatically enforce Tiro Bangla font
+        try {
+            val typeface = ResourcesCompat.getFont(this, R.font.tiro_bangla_regular)
+            textViewData.typeface = typeface
+        } catch (e: Exception) {
+            Log.e("DetailActivity", "Error setting font: ${e.message}")
+        }
     }
 
 
@@ -1271,33 +1309,34 @@ class DetailActivity : AppCompatActivity() {
                              content.substring(end)
         }
 
-        // Robust pattern to catch: {{image:name.jpg|caption:text}} OR {{image:name.jpg|text}}
-        // Consumes surrounding whitespace to prevent layout "ghost lines"
-        val regexWithCaption = Regex("[\\s\\r\\n]*\\{\\{image:(.*?)(?:\\|caption:|\\s*\\|\\s*)(.*?)\\}\\}", RegexOption.DOT_MATCHES_ALL)
-        var processed = textWithDropCap.replace(regexWithCaption) { match ->
-            val rawImageName = match.groupValues[1].trim()
-            val caption = match.groupValues[2].trim()
-            val resourceName = rawImageName.substringBeforeLast(".").replace("-", "_").lowercase()
-            // Using space to start the block (inline-like behavior for zero top margin), and \n\n before caption for paragraph break
-            " ![image](res:///$resourceName)\n\n<book-caption>$caption</book-caption>\n\n"
-        }
+    // Robust pattern to catch: {{image:name.jpg|caption:text}} OR {{image:name.jpg|text}}
+    // Consumes surrounding whitespace AND <br> tags.
+    // Wraps image in <book-image> tag to handle line spacing compensation.
+    val regexWithCaption = Regex("(?:[\\s\\r\\n]|<br\\s*/?>)*\\{\\{image:(.*?)(?:\\|caption:|\\s*\\|\\s*)(.*?)\\}\\}", RegexOption.DOT_MATCHES_ALL)
+    var processed = textWithDropCap.replace(regexWithCaption) { match ->
+        val rawImageName = match.groupValues[1].trim()
+        val caption = match.groupValues[2].trim()
+        val resourceName = rawImageName.substringBeforeLast(".").replace("-", "_").lowercase()
+        // Wraps in <book-image> and uses \n\n to isolate as a block
+        "\n\n<book-image>![image](res:///$resourceName)</book-image>\n\n<book-caption>$caption</book-caption>\n\n"
+    }
 
-        // Ensure <center> tags are surrounded by newlines for proper block parsing
-        // Handle both unescaped and escaped variations and normalize to custom <book-center> tag
-        processed = processed.replace("<center>", "\n\n<book-center>\n")
-                            .replace("&lt;center&gt;", "\n\n<book-center>\n")
-                            .replace("</center>", "\n</book-center>\n\n")
-                            .replace("&lt;/center&gt;", "\n</book-center>\n\n")
+    // Ensure <center> tags are surrounded by newlines for proper block parsing
+    // Handle both unescaped and escaped variations and normalize to custom <book-center> tag
+    processed = processed.replace("<center>", "\n\n<book-center>\n")
+                        .replace("&lt;center&gt;", "\n\n<book-center>\n")
+                        .replace("</center>", "\n</book-center>\n\n")
+                        .replace("&lt;/center&gt;", "\n</book-center>\n\n")
 
 
-        val regexNoCaption = Regex("[\\s\\r\\n]*\\{\\{image:(.*?)\\}\\}")
-        processed = processed.replace(regexNoCaption) { match ->
-            val raw = match.value
-            if (raw.contains("|")) return@replace raw
-            val rawImageName = match.groupValues[1].trim()
-            val resourceName = rawImageName.substringBeforeLast(".").replace("-", "_").lowercase()
-            " ![image](res:///$resourceName)\n\n"
-        }
+    val regexNoCaption = Regex("(?:[\\s\\r\\n]|<br\\s*/?>)*\\{\\{image:(.*?)\\}\\}")
+    processed = processed.replace(regexNoCaption) { match ->
+        val raw = match.value
+        if (raw.contains("|")) return@replace raw
+        val rawImageName = match.groupValues[1].trim()
+        val resourceName = rawImageName.substringBeforeLast(".").replace("-", "_").lowercase()
+        "\n\n<book-image>![image](res:///$resourceName)</book-image>\n\n"
+    }
 
         return processed
     }
