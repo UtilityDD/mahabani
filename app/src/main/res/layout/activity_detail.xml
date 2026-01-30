@@ -93,7 +93,7 @@
                 android:clipToPadding="false"
                 style="@style/ChapterBody.TextView"
                 android:fontFamily="@font/tiro_bangla_regular"
-                android:lineSpacingMultiplier="1.6"
+                android:lineSpacingMultiplier="1.8"
                 android:shadowColor="#00000000"
                 android:shadowDx="0"
                 android:shadowDy="0"

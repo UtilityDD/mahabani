@@ -70,7 +70,7 @@ private const val FONT_PREFS = "FontPrefs"
 private const val KEY_FONT_SIZE = "fontSize"
 private const val DEFAULT_FONT_SIZE = 18f
 private const val KEY_LINE_SPACING = "lineSpacing"
-private const val DEFAULT_LINE_SPACING = 1.7f
+private const val DEFAULT_LINE_SPACING = 1.8f
 private const val BOOKMARK_PREFS = "BookmarkPrefs"
 private const val READER_THEME_PREFS = "ReaderThemePrefs"
 private const val KEY_READER_THEME = "readerTheme"
@@ -1618,7 +1618,7 @@ class DetailActivity : AppCompatActivity() {
         val remainingPhoneticText = phoneticContent.substring(phoneticStartOffset)
         if (remainingPhoneticText.isBlank()) return
 
-        val MAX_CHUNK_LENGTH = 3500 
+        val MAX_CHUNK_LENGTH = 2000 // Safer limit for complex Bengali clusters
         val locale = when (languageCode) {
             "bn" -> Locale("bn", "IN")
             "hi" -> Locale("hi", "IN")
@@ -1632,12 +1632,21 @@ class DetailActivity : AppCompatActivity() {
         var isFirstChunk = true
         
         while (start < remainingPhoneticText.length) {
-            var end = iterator.following((start + MAX_CHUNK_LENGTH).coerceAtMost(remainingPhoneticText.length - 1))
-            if (end == java.text.BreakIterator.DONE || end <= start) {
-                end = remainingPhoneticText.length
+            // Find a sentence end that's within the limit
+            var end = if (start + MAX_CHUNK_LENGTH < remainingPhoneticText.length) {
+                iterator.preceding(start + MAX_CHUNK_LENGTH)
+            } else {
+                remainingPhoneticText.length
+            }
+            
+            // If no sentence end is found in this chunk, force cut it at MAX_CHUNK_LENGTH
+            if (end <= start || end == java.text.BreakIterator.DONE) {
+                end = (start + MAX_CHUNK_LENGTH).coerceAtMost(remainingPhoneticText.length)
             }
             
             val chunk = remainingPhoneticText.substring(start, end)
+            Log.d("TTS_DEBUG", "Queuing chunk: length=${chunk.length}, id=${phoneticStartOffset + start}")
+            
             val absPhoneticBase = phoneticStartOffset + start
             lastQueuedUtteranceId = absPhoneticBase.toString()
             
@@ -1645,6 +1654,7 @@ class DetailActivity : AppCompatActivity() {
             val result = textToSpeech?.speak(chunk, queueMode, null, lastQueuedUtteranceId)
             
             if (result == TextToSpeech.ERROR) {
+                Log.e("TTS_DEBUG", "Speech engine error for chunk length ${chunk.length}")
                 Toast.makeText(this, "Speech engine error.", Toast.LENGTH_SHORT).show()
                 return
             }
