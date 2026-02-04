@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.blackgrapes.kadachabuk.Chapter
 
-@Database(entities = [Chapter::class, LibraryBook::class], version = 6, exportSchema = false)
+@Database(entities = [Chapter::class, LibraryBook::class], version = 7, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun chapterDao(): ChapterDao

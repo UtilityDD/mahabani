@@ -52,6 +52,10 @@ data class Chapter(
      */
     val version: String,
     /**
+     * Optional link to a human audio recording (e.g., GitHub URL).
+     */
+    val audioLink: String? = null,
+    /**
      * Tracking if the chapter has been read by the user.
      */
     val isRead: Boolean = false

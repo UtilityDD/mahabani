@@ -65,6 +65,7 @@ class SearchResultAdapter(private var searchResults: List<SearchResult>) :
                     putExtra("EXTRA_SERIAL", chapter.serial)
                     putExtra("EXTRA_LANGUAGE_CODE", chapter.languageCode)
                     putExtra("EXTRA_BOOK_ID", chapter.bookId) // Pass bookId
+                    putExtra("EXTRA_AUDIO_LINK", chapter.audioLink)
                     putExtra("EXTRA_SEARCH_QUERY", query) // Pass the search query
                 }
                 context.startActivity(intent)

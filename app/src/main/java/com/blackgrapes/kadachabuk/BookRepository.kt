@@ -367,33 +367,51 @@ class BookRepository(private val context: Context) {
                     }
                 }
 
+                var header: List<String>? = null
+                
                 csvReader { skipEmptyLine = true }.open(csvInputStream) { // csvInputStream will be closed by this block
                     readAllAsSequence().forEachIndexed forEach@{ index, row ->
-                        if (index == 0 && isHeaderRow(row)) return@forEach // Skip header row
-                        // ...
-                        // ...
-                        if (row.size >= 6) {
-                            val chapter = Chapter(
-                                languageCode = languageCodeForLog, // Now part of the object creation
-                                bookId = bookId,
-                                heading = row.getOrElse(0) { "Unknown Heading" }.trim(),
-                                date = row.getOrElse(1) { "" }.trim().let { if (it.isNotEmpty()) it else null },
-                                writer = row.getOrElse(2) { "Unknown Writer" }.trim(),
-                                dataText = row.getOrElse(3) { "No Data" }.trim(), // Ensure this line is present and correct
-                                serial = row.getOrElse(4) { "N/A" }.trim(),
-                                version = row.getOrElse(5) { "N/A" }.trim()
-                            )
-                            chapterList.add(chapter)
-                            // Invoke the callback with the newly parsed chapter and progress
-                            val progress = DownloadProgress(chapter = chapter)
-                            onProgress(progress)
-                        } else {
-                            Log.w("BookRepository", "Skipping malformed CSV row for $languageCodeForLog (expected at least 6 columns, found ${row.size})")
+                        if (header == null) {
+                            if (isHeaderRow(row)) {
+                                header = row.map { it.trim().lowercase() }
+                                return@forEach
+                            } else {
+                                // Default header if missing
+                                header = listOf("heading", "date", "writer", "data", "serial", "version", "audiolink")
+                            }
                         }
+                        
+                        try {
+                            val h = header!!
+                            val headingIdx = h.indexOf("heading").let { if (it == -1) 0 else it }
+                            val dateIdx = h.indexOf("date").let { if (it == -1) 1 else it }
+                            val writerIdx = h.indexOf("writer").let { if (it == -1) 2 else it }
+                            val dataIdx = h.indexOf("data").let { if (it == -1) 3 else it }
+                            val serialIdx = h.indexOf("serial").let { if (it == -1) 4 else it }
+                            val versionIdx = h.indexOf("version").let { if (it == -1) 5 else it }
+                            val audioIdx = h.indexOf("audiolink").let { if (it == -1) 6 else it }
 
+                            if (row.size >= 5) { 
+                                val chapter = Chapter(
+                                    languageCode = languageCodeForLog,
+                                    bookId = bookId,
+                                    heading = row.getOrNull(headingIdx)?.trim() ?: "Unknown Heading",
+                                    date = row.getOrNull(dateIdx)?.trim()?.let { if (it.isNotEmpty()) it else null },
+                                    writer = row.getOrNull(writerIdx)?.trim() ?: "Unknown Writer",
+                                    dataText = row.getOrNull(dataIdx)?.trim() ?: "No Data",
+                                    serial = row.getOrNull(serialIdx)?.trim() ?: "N/A",
+                                    version = row.getOrNull(versionIdx)?.trim() ?: "N/A",
+                                    audioLink = row.getOrNull(audioIdx)?.trim()?.let { if (it.isEmpty()) null else it }
+                                )
+                                chapterList.add(chapter)
+                                val progress = DownloadProgress(chapter = chapter)
+                                onProgress(progress)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("BookRepository", "Error parsing chapter row for $languageCodeForLog at index $index: ${e.message}", e)
+                        }
                     }
                 }
-                chapterList
             Log.i("BookRepository", "Internal CSV parsing complete for $languageCodeForLog. Found ${chapterList.size} chapters.")
             Result.success(chapterList)
         } catch (e: Exception) {
@@ -652,57 +670,54 @@ class BookRepository(private val context: Context) {
             rows.drop(1).forEach { row ->
                 if (row.isEmpty()) return@forEach
                 
-                var sl = row.getOrNull(header.indexOf("sl"))?.trim() ?: ""
-                if (sl.isEmpty()) return@forEach
-                
-                // Normalize SL: pad single digit strings with a leading zero (e.g., "1" -> "01")
-                if (sl.length == 1 && sl[0].isDigit()) {
-                    sl = "0$sl"
-                }
-                
-                val bookId = when(sl) {
-                    "01" -> "kada_chabuk"
-                    "02" -> "shaishab_kahini"
-                    else -> "book_$sl"
-                }
+                try {
+                    val slRaw = row.getOrNull(header.indexOf("sl"))?.trim() ?: ""
+                    if (slRaw.isEmpty()) return@forEach
+                    
+                    val sl = if (slRaw.length == 1 && slRaw[0].isDigit()) "0$slRaw" else slRaw
+                    
+                    val bookId = when(sl) {
+                        "01" -> "kada_chabuk"
+                        "02" -> "shaishab_kahini"
+                        else -> "book_$sl"
+                    }
 
-                val sheetId = row.getOrNull(header.indexOf("sheet_id"))?.trim() ?: ""
-                val versionsGid = row.getOrNull(header.indexOf("versions_gid"))?.trim() ?: ""
-                val aboutGid = row.getOrNull(header.indexOf("about_gid"))?.trim() ?: "1925993700"
-                val contributorsGid = row.getOrNull(header.indexOf("contributors_gid"))?.trim() ?: "1786621690"
-
-                books.add(LibraryBook(
-                    bookId = bookId,
-                    sl = sl,
-                    sheetId = sheetId,
-                    versionsGid = versionsGid,
-                    aboutGid = aboutGid,
-                    contributorsGid = contributorsGid,
-                    bnGid = row.getOrNull(header.indexOf("bn_gid"))?.trim() ?: "",
-                    hiGid = row.getOrNull(header.indexOf("hi_gid"))?.trim() ?: "",
-                    enGid = row.getOrNull(header.indexOf("en_gid"))?.trim() ?: "",
-                    asGid = row.getOrNull(header.indexOf("as_gid"))?.trim() ?: "",
-                    odGid = row.getOrNull(header.indexOf("od_gid"))?.trim() ?: "",
-                    tmGid = row.getOrNull(header.indexOf("tm_gid"))?.trim() ?: "",
-                    bnName = row.getOrNull(header.indexOf("bn_name"))?.trim() ?: "",
-                    hiName = row.getOrNull(header.indexOf("hi_name"))?.trim() ?: "",
-                    enName = row.getOrNull(header.indexOf("en_name"))?.trim() ?: "",
-                    asName = row.getOrNull(header.indexOf("as_name"))?.trim() ?: "",
-                    odName = row.getOrNull(header.indexOf("od_name"))?.trim() ?: "",
-                    tmName = row.getOrNull(header.indexOf("tm_name"))?.trim() ?: "",
-                    bnSubName = row.getOrNull(header.indexOf("bn_subname"))?.trim() ?: "",
-                    hiSubName = row.getOrNull(header.indexOf("hi_subname"))?.trim() ?: "",
-                    enSubName = row.getOrNull(header.indexOf("en_subname"))?.trim() ?: "",
-                    asSubName = row.getOrNull(header.indexOf("as_subname"))?.trim() ?: "",
-                    odSubName = row.getOrNull(header.indexOf("od_subname"))?.trim() ?: "",
-                    tmSubName = row.getOrNull(header.indexOf("tm_subname"))?.trim() ?: "",
-                    bnYear = row.getOrNull(header.indexOf("bn_year"))?.trim() ?: "",
-                    hiYear = row.getOrNull(header.indexOf("hi_year"))?.trim() ?: "",
-                    enYear = row.getOrNull(header.indexOf("en_year"))?.trim() ?: "",
-                    asYear = row.getOrNull(header.indexOf("as_year"))?.trim() ?: "",
-                    odYear = row.getOrNull(header.indexOf("od_year"))?.trim() ?: "",
-                    tmYear = row.getOrNull(header.indexOf("tm_year"))?.trim() ?: ""
-                ))
+                    books.add(LibraryBook(
+                        bookId = bookId,
+                        sl = sl,
+                        sheetId = row.getOrNull(header.indexOf("sheet_id"))?.trim() ?: "",
+                        versionsGid = row.getOrNull(header.indexOf("versions_gid"))?.trim() ?: "",
+                        aboutGid = row.getOrNull(header.indexOf("about_gid"))?.trim() ?: "1925993700", // Kept original default
+                        contributorsGid = row.getOrNull(header.indexOf("contributors_gid"))?.trim() ?: "1786621690", // Kept original default
+                        bnGid = row.getOrNull(header.indexOf("bn_gid"))?.trim() ?: "",
+                        hiGid = row.getOrNull(header.indexOf("hi_gid"))?.trim() ?: "",
+                        enGid = row.getOrNull(header.indexOf("en_gid"))?.trim() ?: "",
+                        asGid = row.getOrNull(header.indexOf("as_gid"))?.trim() ?: "",
+                        odGid = row.getOrNull(header.indexOf("od_gid"))?.trim() ?: "",
+                        tmGid = row.getOrNull(header.indexOf("tm_gid"))?.trim() ?: "",
+                        bnName = row.getOrNull(header.indexOf("bn_name"))?.trim() ?: "",
+                        hiName = row.getOrNull(header.indexOf("hi_name"))?.trim() ?: "",
+                        enName = row.getOrNull(header.indexOf("en_name"))?.trim() ?: "",
+                        asName = row.getOrNull(header.indexOf("as_name"))?.trim() ?: "",
+                        odName = row.getOrNull(header.indexOf("od_name"))?.trim() ?: "",
+                        tmName = row.getOrNull(header.indexOf("tm_name"))?.trim() ?: "",
+                        bnSubName = row.getOrNull(header.indexOf("bn_subname"))?.trim() ?: "",
+                        hiSubName = row.getOrNull(header.indexOf("hi_subname"))?.trim() ?: "",
+                        enSubName = row.getOrNull(header.indexOf("en_subname"))?.trim() ?: "",
+                        asSubName = row.getOrNull(header.indexOf("as_subname"))?.trim() ?: "",
+                        odSubName = row.getOrNull(header.indexOf("od_subname"))?.trim() ?: "",
+                        tmSubName = row.getOrNull(header.indexOf("tm_subname"))?.trim() ?: "",
+                        bnYear = row.getOrNull(header.indexOf("bn_year"))?.trim() ?: "",
+                        hiYear = row.getOrNull(header.indexOf("hi_year"))?.trim() ?: "",
+                        enYear = row.getOrNull(header.indexOf("en_year"))?.trim() ?: "",
+                        asYear = row.getOrNull(header.indexOf("as_year"))?.trim() ?: "",
+                        odYear = row.getOrNull(header.indexOf("od_year"))?.trim() ?: "",
+                        tmYear = row.getOrNull(header.indexOf("tm_year"))?.trim() ?: "",
+                        audioLink = row.getOrNull(header.indexOf("audiolink"))?.trim() ?: ""
+                    ))
+                } catch (e: Exception) {
+                    Log.e("BookRepository", "Error parsing library row: ${e.message}", e)
+                }
             }
         }
         return books

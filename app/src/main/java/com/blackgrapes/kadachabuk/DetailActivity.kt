@@ -24,6 +24,9 @@ import android.view.MenuItem
 import android.view.GestureDetector
 import android.speech.tts.TextToSpeech
 import java.util.Locale
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import android.widget.ImageButton
 import android.widget.ImageView // <-- IMPORT THIS
 import android.util.TypedValue
@@ -60,6 +63,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.slider.Slider
+import com.google.android.material.floatingactionbutton.FloatingActionButton // Add this
+import androidx.core.app.ActivityCompat // Add this
+import android.content.pm.PackageManager // Add this
+import android.Manifest // Add this
+import androidx.annotation.OptIn
+import androidx.cardview.widget.CardView // Add this
+import androidx.media3.common.util.UnstableApi
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.linkify.LinkifyPlugin
@@ -112,6 +122,9 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var bookId: String
     private lateinit var markwon: Markwon
     private lateinit var breathingOrb: BreathingOrbView // Custom visualizer
+    private var exoPlayer: ExoPlayer? = null
+    private var audioLink: String? = null
+    private var isHumanAudioPlaying = false
 
     private var chapterHeading: String? = null
     private var chapterDate: String? = null
@@ -139,6 +152,13 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var gestureDetector: GestureDetector
     private lateinit var bookRepository: BookRepository // Access repository
 
+    // --- Compact Audio Player Variables ---
+    private var compactPlayer: View? = null
+    private var compactVisualizer: AudioVisualizerView? = null
+    private var btnCompactPlayPause: FloatingActionButton? = null
+    private var btnCompactStop: ImageButton? = null
+    private val RECORD_AUDIO_PERMISSION_CODE = 101
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -150,6 +170,7 @@ class DetailActivity : AppCompatActivity() {
         chapterSerial = intent.getStringExtra("EXTRA_SERIAL") ?: ""
         languageCode = intent.getStringExtra("EXTRA_LANGUAGE_CODE") ?: ""
         bookId = intent.getStringExtra("EXTRA_BOOK_ID") ?: "kada_chabuk"
+        audioLink = intent.getStringExtra("EXTRA_AUDIO_LINK")
 
         setContentView(R.layout.activity_detail)
         // Enable the action bar menu
@@ -177,17 +198,27 @@ class DetailActivity : AppCompatActivity() {
 
         // Initialize TextToSpeech
         initializeTts()
+        initializePlayer()
 
 
         buttonTts.setOnClickListener {
-            if (!isTtsInitialized) {
-                Toast.makeText(this, "Voice engine is warming up, please wait...", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (isTtsPlaying) {
-                pauseTts()
+            if (isHumanAudioAvailable()) {
+                // If already playing, just pause. If not, show overlay (which starts play)
+                if (isHumanAudioPlaying) {
+                    pauseHumanAudio()
+                } else {
+                    checkPermissionAndShowOverlay()
+                }
             } else {
-                startTts()
+                if (!isTtsInitialized) {
+                    Toast.makeText(this, "Voice engine is warming up, please wait...", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (isTtsPlaying) {
+                    pauseTts()
+                } else {
+                    startTts()
+                }
             }
         }
         
@@ -719,7 +750,27 @@ class DetailActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         sessionStartTime = System.currentTimeMillis()
+        initializePlayer()
         highlightSearchTerm()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        pauseTts()
+        pauseHumanAudio()
+        collapseAudioPlayer() // Collapse player when leaving
+        saveReadingTime()
+        saveScrollPosition()
+        saveLastReadChapter()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stopTts()
+        releasePlayer()
+        compactVisualizer?.release()
+        textToSpeech?.shutdown()
+        breathingOrb.setTalking(false)
     }
 
     private fun setupBookmarkButton() {
@@ -903,12 +954,6 @@ class DetailActivity : AppCompatActivity() {
         animator.start()
     }
 
-    override fun onPause() {
-        super.onPause()
-        saveReadingTime()
-        saveScrollPosition()
-        saveLastReadChapter()
-    }
 
     private fun saveLastReadChapter() {
         if (::chapterSerial.isInitialized && ::languageCode.isInitialized && chapterSerial.isNotEmpty() && languageCode.isNotEmpty()) {
@@ -1511,6 +1556,7 @@ class DetailActivity : AppCompatActivity() {
             putExtra("EXTRA_SERIAL", chapter.serial)
             putExtra("EXTRA_LANGUAGE_CODE", languageCode)
             putExtra("EXTRA_BOOK_ID", bookId)
+            putExtra("EXTRA_AUDIO_LINK", chapter.audioLink)
         }
         
         startActivity(intent)
@@ -1710,12 +1756,6 @@ class DetailActivity : AppCompatActivity() {
         (textViewData.text as? Spannable)?.removeSpan(ttsHighlightSpan)
     }
 
-    override fun onDestroy() {
-        breathingOrb.setTalking(false) // Cleanup animation
-        textToSpeech?.stop()
-        textToSpeech?.shutdown()
-        super.onDestroy()
-    }
     private var ttsRetryCount = 0
     private val MAX_TTS_RETRIES = 3
 
@@ -1849,5 +1889,209 @@ class DetailActivity : AppCompatActivity() {
                 .setNegativeButton("Cancel", null)
                 .show()
         }
+    }
+
+    private fun getAutoGuessedAudioUrl(): String {
+        // Normalize serial: remove leading zeros (e.g., "01" -> "1")
+        val cleanSerial = chapterSerial.toIntOrNull()?.toString() ?: chapterSerial
+        // Canonical Raw format is safest for ExoPlayer
+        return "https://raw.githubusercontent.com/UtilityDD/mahabani_audio/main/$bookId/$languageCode/$cleanSerial.wav"
+    }
+
+    private fun isHumanAudioAvailable(): Boolean {
+        // 1. Check if we have a direct link from the sheet
+        if (!audioLink.isNullOrBlank()) return true
+        
+        // 2. Otherwise check for the test case book
+        return bookId == "mahabani_amrita"
+    }
+
+    private fun initializePlayer() {
+        if (exoPlayer != null) return
+        exoPlayer = ExoPlayer.Builder(this).build()
+        exoPlayer?.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                isHumanAudioPlaying = isPlaying
+                runOnUiThread {
+                    if (isPlaying) {
+                        buttonTts.setImageResource(R.drawable.ic_pause)
+                        breathingOrb.setTalking(true)
+                        // Sync compact player button if visible
+                        btnCompactPlayPause?.setImageResource(R.drawable.ic_pause)
+                    } else {
+                        buttonTts.setImageResource(R.drawable.ic_speaker)
+                        breathingOrb.setTalking(false)
+                        // Sync compact player button if visible
+                        btnCompactPlayPause?.setImageResource(R.drawable.ic_play_arrow)
+                    }
+                }
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    isHumanAudioPlaying = false
+                    breathingOrb.setTalking(false)
+                    buttonTts.setImageResource(R.drawable.ic_speaker)
+                }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                Log.e("AudioPlayer", "Error playing human audio: ${error.message}")
+                Toast.makeText(this@DetailActivity, "Human audio unavailable. Falling back to voice engine.", Toast.LENGTH_SHORT).show()
+                audioLink = null 
+                isHumanAudioPlaying = false
+                breathingOrb.setTalking(false)
+                buttonTts.setImageResource(R.drawable.ic_speaker)
+            }
+        })
+    }
+
+    private fun playHumanAudio() {
+        // Check if we're resuming playback (player already has content)
+        val isResuming = exoPlayer?.currentMediaItem != null && exoPlayer?.duration ?: 0 > 0
+        
+        if (isResuming) {
+            // Resume from 2 seconds back for context
+            val currentPos = exoPlayer?.currentPosition ?: 0L
+            val seekPos = (currentPos - 2000L).coerceAtLeast(0L) // 2 seconds back, minimum 0
+            exoPlayer?.seekTo(seekPos)
+            Log.d("AudioPlayer", "Resuming from position: $seekPos ms (2s back from $currentPos)")
+        } else {
+            // Starting fresh
+            val url = audioLink ?: getAutoGuessedAudioUrl()
+            Log.d("AudioPlayer", "Starting new audio: $url")
+            
+            stopTts() // Ensure robot voice is off
+            
+            val mediaItem = MediaItem.fromUri(url)
+            exoPlayer?.setMediaItem(mediaItem)
+            exoPlayer?.prepare()
+        }
+        
+        exoPlayer?.play()
+        
+        // Start visualizer animation
+        compactVisualizer?.startAnimation()
+    }
+
+    private fun pauseHumanAudio() {
+        exoPlayer?.pause()
+        // Stop visualizer animation when paused
+        compactVisualizer?.stopAnimation()
+    }
+
+    private fun releasePlayer() {
+        exoPlayer?.release()
+        exoPlayer = null
+    }
+
+    // --- Audio Overlay & Visualizer Logic ---
+
+    private fun checkPermissionAndShowOverlay() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), RECORD_AUDIO_PERMISSION_CODE)
+        } else {
+            expandAudioPlayer()
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == RECORD_AUDIO_PERMISSION_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                expandAudioPlayer()
+            } else {
+                Toast.makeText(this, "Permission denied. Visualizer will not work, but audio will play.", Toast.LENGTH_SHORT).show()
+                // Still play audio without visualizer
+                playHumanAudio() 
+            }
+        }
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun expandAudioPlayer() {
+        // Get references to views
+        if (compactPlayer == null) {
+            compactPlayer = findViewById(R.id.compact_audio_player)
+            compactVisualizer = compactPlayer?.findViewById(R.id.compact_visualizer_view)
+            btnCompactPlayPause = compactPlayer?.findViewById(R.id.btn_compact_play_pause)
+            btnCompactStop = compactPlayer?.findViewById(R.id.btn_compact_stop)
+            
+            // Set Listeners
+            btnCompactPlayPause?.setOnClickListener {
+                if (isHumanAudioPlaying) pauseHumanAudio() else playHumanAudio()
+            }
+            
+            btnCompactStop?.setOnClickListener {
+                pauseHumanAudio()
+                exoPlayer?.seekTo(0)
+                isHumanAudioPlaying = false
+                btnCompactPlayPause?.setImageResource(R.drawable.ic_play_arrow)
+                collapseAudioPlayer()
+            }
+        }
+
+        // Ensure play is triggered if not already playing
+        if (!isHumanAudioPlaying) {
+            playHumanAudio()
+        }
+        
+        // Link visualizer AFTER playback starts (with a small delay to ensure player is ready)
+        compactPlayer?.postDelayed({
+            exoPlayer?.let { player ->
+                val sessionId = player.audioSessionId
+                android.util.Log.d("AudioVisualizer", "Linking to audio session: $sessionId")
+                if (sessionId != 0) {
+                    compactVisualizer?.linkTo(sessionId)
+                } else {
+                    android.util.Log.e("AudioVisualizer", "Invalid audio session ID!")
+                }
+            }
+        }, 300) // 300ms delay to ensure player is initialized
+
+        // Update button state
+        btnCompactPlayPause?.setImageResource(R.drawable.ic_pause)
+
+        // Smoothly hide bookmark and font buttons, show the compact player
+        bookmarkButton.animate().alpha(0f).setDuration(200).withEndAction {
+            bookmarkButton.visibility = View.GONE
+        }.start()
+        
+        fontSettingsButton.animate().alpha(0f).setDuration(200).withEndAction {
+            fontSettingsButton.visibility = View.GONE
+        }.start()
+        
+        buttonTts.animate().alpha(0f).setDuration(200).withEndAction {
+            buttonTts.visibility = View.GONE
+            // Now show the compact player
+            compactPlayer?.visibility = View.VISIBLE
+            compactPlayer?.alpha = 0f
+            compactPlayer?.animate()?.alpha(1f)?.setDuration(300)?.start()
+        }.start()
+    }
+
+    private fun collapseAudioPlayer() {
+        // Smoothly hide compact player, restore original buttons
+        compactPlayer?.animate()?.alpha(0f)?.setDuration(200)?.withEndAction {
+            compactPlayer?.visibility = View.GONE
+            compactVisualizer?.release()
+            
+            // Show original buttons
+            buttonTts.visibility = View.VISIBLE
+            buttonTts.alpha = 0f
+            buttonTts.animate().alpha(1f).setDuration(300).start()
+            
+            bookmarkButton.visibility = View.VISIBLE
+            bookmarkButton.alpha = 0f
+            bookmarkButton.animate().alpha(1f).setDuration(300).start()
+            
+            fontSettingsButton.visibility = View.VISIBLE
+            fontSettingsButton.alpha = 0f
+            fontSettingsButton.animate().alpha(1f).setDuration(300).start()
+        }?.start()
+    }
+
+    private fun dpToPx(dp: Float): Int {
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, resources.displayMetrics).toInt()
     }
 }

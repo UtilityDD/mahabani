@@ -198,6 +198,15 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Compact Audio Player (Expandable) -->
+    <include
+        layout="@layout/layout_compact_audio_player"
+        android:id="@+id/compact_audio_player"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <LinearLayout
         android:id="@+id/search_navigation_layout"
         android:layout_width="wrap_content"

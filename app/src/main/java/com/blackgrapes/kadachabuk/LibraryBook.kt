@@ -42,7 +42,10 @@ data class LibraryBook(
     val enYear: String = "",
     val asYear: String = "",
     val odYear: String = "",
-    val tmYear: String = ""
+    val tmYear: String = "",
+    
+    // Audio link for the book (optional)
+    val audioLink: String = ""
 ) {
     // --- Helper Extensions for LibraryBook Localization ---
     fun getLocalizedName(lang: String): String {

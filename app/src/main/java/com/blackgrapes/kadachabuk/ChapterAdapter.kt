@@ -45,6 +45,7 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
                 putExtra("EXTRA_SERIAL", chapter.serial)
                 putExtra("EXTRA_LANGUAGE_CODE", chapter.languageCode)
                 putExtra("EXTRA_BOOK_ID", chapter.bookId) // Pass bookId
+                putExtra("EXTRA_AUDIO_LINK", chapter.audioLink)
             }
             context.startActivity(intent)
         }

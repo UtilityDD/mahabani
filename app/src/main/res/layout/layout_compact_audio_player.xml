@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Compact Audio Player - Horizontal Pill with Small Vibrating Line -->
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/audio_player_card"
+    android:layout_width="wrap_content"
+    android:layout_height="48dp"
+    android:layout_marginTop="16dp"
+    android:layout_marginEnd="16dp"
+    app:cardBackgroundColor="#1A1A1A"
+    app:cardCornerRadius="24dp"
+    app:cardElevation="8dp"
+    android:visibility="gone"
+    android:alpha="0">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp">
+
+        <!-- Small Vibrating Line Visualizer -->
+        <com.blackgrapes.kadachabuk.AudioVisualizerView
+            android:id="@+id/compact_visualizer_view"
+            android:layout_width="80dp"
+            android:layout_height="28dp"
+            android:layout_marginEnd="10dp"
+            android:background="#2A2A2A"
+            android:padding="3dp" />
+
+        <!-- Stop Button -->
+        <ImageButton
+            android:id="@+id/btn_compact_stop"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="6dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_stop"
+            android:contentDescription="Stop"
+            app:tint="#B0B0B0" />
+
+        <!-- Play/Pause Button -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btn_compact_play_pause"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_pause"
+            android:contentDescription="Pause"
+            app:fabSize="mini"
+            app:tint="#E0C090"
+            app:backgroundTint="#2A2A2A"
+            app:elevation="0dp" />
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
