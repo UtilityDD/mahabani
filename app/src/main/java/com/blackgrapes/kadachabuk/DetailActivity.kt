@@ -156,6 +156,7 @@ class DetailActivity : AppCompatActivity() {
     private var compactVisualizer: AudioVisualizerView? = null
     private var btnCompactPlayPause: FloatingActionButton? = null
     private var btnCompactStop: ImageButton? = null
+    private var btnCompactDownload: ImageButton? = null
     private val RECORD_AUDIO_PERMISSION_CODE = 101
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1682,6 +1683,11 @@ class DetailActivity : AppCompatActivity() {
                         isAudioDownloaded = true
                         buttonDownload.setImageResource(R.drawable.ic_checkmark)
                         buttonDownload.animate().alpha(1.0f).setDuration(300).start()
+                        
+                        // Also update compact player download button if visible
+                        btnCompactDownload?.setImageResource(R.drawable.ic_checkmark)
+                        btnCompactDownload?.alpha = 1.0f
+                        
                         Toast.makeText(this@DetailActivity, "Download complete", Toast.LENGTH_SHORT).show()
                         Log.d("AudioDownload", "Successfully downloaded to: ${localFile.absolutePath}")
                     }
@@ -1820,6 +1826,7 @@ class DetailActivity : AppCompatActivity() {
             compactVisualizer = compactPlayer?.findViewById(R.id.compact_visualizer_view)
             btnCompactPlayPause = compactPlayer?.findViewById(R.id.btn_compact_play_pause)
             btnCompactStop = compactPlayer?.findViewById(R.id.btn_compact_stop)
+            btnCompactDownload = compactPlayer?.findViewById(R.id.btn_compact_download)
             
             // Set Listeners
             btnCompactPlayPause?.setOnClickListener {
@@ -1833,7 +1840,21 @@ class DetailActivity : AppCompatActivity() {
                 btnCompactPlayPause?.setImageResource(R.drawable.ic_play_arrow)
                 collapseAudioPlayer()
             }
+            
+            btnCompactDownload?.setOnClickListener {
+                if (isAudioAvailable && !isAudioDownloaded) {
+                    downloadAudio()
+                } else if (isAudioDownloaded) {
+                    Toast.makeText(this, "Audio already downloaded", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
+        
+        // Update compact download button state
+        btnCompactDownload?.setImageResource(
+            if (isAudioDownloaded) R.drawable.ic_checkmark else R.drawable.ic_download
+        )
+        btnCompactDownload?.alpha = if (isAudioAvailable) 1.0f else 0.4f
 
         // Ensure play is triggered if not already playing
         if (!isHumanAudioPlaying) {
