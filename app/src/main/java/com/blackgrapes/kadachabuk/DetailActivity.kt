@@ -47,6 +47,8 @@ import androidx.core.app.ShareCompat
 import android.widget.Toast
 import android.util.Log
 import java.text.BreakIterator
+import java.net.HttpURLConnection
+import java.net.URL
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -117,6 +119,7 @@ class DetailActivity : AppCompatActivity() {
     private var exoPlayer: ExoPlayer? = null
     private var audioLink: String? = null
     private var isHumanAudioPlaying = false
+    private var isAudioAvailable = false
 
     private var chapterHeading: String? = null
     private var chapterDate: String? = null
@@ -188,19 +191,10 @@ class DetailActivity : AppCompatActivity() {
         breathingOrb = findViewById(R.id.breathingOrb) // Initialize orb
         initializePlayer()
 
-        // Check if audio is available and set button state
-        if (audioLink.isNullOrBlank()) {
-            // No audio available - disable button
-            buttonTts.alpha = 0.4f
-            buttonTts.isEnabled = false
-        } else {
-            // Audio available - enable button
-            buttonTts.alpha = 1.0f
-            buttonTts.isEnabled = true
-        }
+        checkAudioAvailability()
 
         buttonTts.setOnClickListener {
-            if (audioLink.isNullOrBlank()) {
+            if (!isAudioAvailable) {
                 Toast.makeText(this, "Audio not available for this chapter", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
@@ -1576,6 +1570,46 @@ class DetailActivity : AppCompatActivity() {
         return "https://raw.githubusercontent.com/UtilityDD/mahabani_audio/main/$bookId/$languageCode/$cleanSerial.wav"
     }
 
+    private suspend fun verifyUrlExists(urlString: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "HEAD"
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                val responseCode = connection.responseCode
+                connection.disconnect()
+                responseCode == HttpURLConnection.HTTP_OK
+            } catch (e: Exception) {
+                Log.e("AudioVerify", "Error verifying URL: $urlString", e)
+                false
+            }
+        }
+    }
+
+    private fun checkAudioAvailability() {
+        // Initial state: disabled/loading look
+        isAudioAvailable = false
+        buttonTts.alpha = 0.4f
+        buttonTts.isEnabled = true // Keep enabled to show toast on click
+        
+        // Use auto-guessed URL if audioLink is null/blank
+        val urlToVerify = if (!audioLink.isNullOrBlank()) audioLink!! else getAutoGuessedAudioUrl()
+        
+        CoroutineScope(Dispatchers.Main).launch {
+            val exists = verifyUrlExists(urlToVerify)
+            isAudioAvailable = exists
+            if (exists) {
+                buttonTts.alpha = 1.0f
+                Log.d("AudioVerify", "Audio available: $urlToVerify")
+            } else {
+                buttonTts.alpha = 0.4f
+                Log.d("AudioVerify", "Audio NOT available: $urlToVerify")
+            }
+        }
+    }
+
 
 
     private fun initializePlayer() {
@@ -1751,7 +1785,8 @@ class DetailActivity : AppCompatActivity() {
             // Show original buttons
             buttonTts.visibility = View.VISIBLE
             buttonTts.alpha = 0f
-            buttonTts.animate().alpha(1f).setDuration(300).start()
+            val targetAlpha = if (isAudioAvailable) 1.0f else 0.4f
+            buttonTts.animate().alpha(targetAlpha).setDuration(300).start()
             
             bookmarkButton.visibility = View.VISIBLE
             bookmarkButton.alpha = 0f
