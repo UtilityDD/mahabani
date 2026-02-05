@@ -49,6 +49,8 @@ import android.util.Log
 import java.text.BreakIterator
 import java.net.HttpURLConnection
 import java.net.URL
+import java.io.File
+import java.io.FileOutputStream
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -106,6 +108,7 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var backButton: ImageButton
     private lateinit var bookmarkButton: ImageButton
     private lateinit var buttonTts: ImageButton
+    private lateinit var buttonDownload: ImageButton
     private lateinit var chapterSerial: String
     private lateinit var languageCode: String
     private lateinit var scrollToTopButton: ImageButton
@@ -120,6 +123,7 @@ class DetailActivity : AppCompatActivity() {
     private var audioLink: String? = null
     private var isHumanAudioPlaying = false
     private var isAudioAvailable = false
+    private var isAudioDownloaded = false
 
     private var chapterHeading: String? = null
     private var chapterDate: String? = null
@@ -180,6 +184,7 @@ class DetailActivity : AppCompatActivity() {
             fontSettingsButton.updatePadding(top = systemBars.top)
             bookmarkButton.updatePadding(top = systemBars.top)
             buttonTts.updatePadding(top = systemBars.top)
+            buttonDownload.updatePadding(top = systemBars.top)
             backButton.updatePadding(top = systemBars.top)
             insets
         }
@@ -188,10 +193,18 @@ class DetailActivity : AppCompatActivity() {
         imageViewHeader = findViewById(R.id.imageViewHeader)
         
         buttonTts = findViewById(R.id.button_tts)
+        buttonDownload = findViewById(R.id.button_download)
         breathingOrb = findViewById(R.id.breathingOrb) // Initialize orb
-        initializePlayer()
 
         checkAudioAvailability()
+
+        buttonDownload.setOnClickListener {
+            if (isAudioAvailable && !isAudioDownloaded) {
+                downloadAudio()
+            } else if (isAudioDownloaded) {
+                Toast.makeText(this, "Audio already downloaded", Toast.LENGTH_SHORT).show()
+            }
+        }
 
         buttonTts.setOnClickListener {
             if (!isAudioAvailable) {
@@ -1591,21 +1604,97 @@ class DetailActivity : AppCompatActivity() {
     private fun checkAudioAvailability() {
         // Initial state: disabled/loading look
         isAudioAvailable = false
+        isAudioDownloaded = false
         buttonTts.alpha = 0.4f
         buttonTts.isEnabled = true // Keep enabled to show toast on click
         
+        buttonDownload.visibility = View.GONE
+        buttonDownload.alpha = 1.0f
+        buttonDownload.setImageResource(R.drawable.ic_download)
+
         // Use auto-guessed URL if audioLink is null/blank
         val urlToVerify = if (!audioLink.isNullOrBlank()) audioLink!! else getAutoGuessedAudioUrl()
         
+        // 1. Check local storage first
+        val localFile = getLocalAudioFile()
+        if (localFile.exists()) {
+            isAudioAvailable = true
+            isAudioDownloaded = true
+            runOnUiThread {
+                buttonTts.alpha = 1.0f
+                buttonDownload.visibility = View.VISIBLE
+                buttonDownload.setImageResource(R.drawable.ic_checkmark)
+                Log.d("AudioVerify", "Local audio found: ${localFile.absolutePath}")
+            }
+            return
+        }
+
+        // 2. If not local, check remote reachability
         CoroutineScope(Dispatchers.Main).launch {
             val exists = verifyUrlExists(urlToVerify)
             isAudioAvailable = exists
             if (exists) {
                 buttonTts.alpha = 1.0f
-                Log.d("AudioVerify", "Audio available: $urlToVerify")
+                buttonDownload.visibility = View.VISIBLE
+                Log.d("AudioVerify", "Remote audio available: $urlToVerify")
             } else {
                 buttonTts.alpha = 0.4f
+                buttonDownload.visibility = View.GONE
                 Log.d("AudioVerify", "Audio NOT available: $urlToVerify")
+            }
+        }
+    }
+
+    private fun getLocalAudioFile(): File {
+        val directory = File(filesDir, "audio_downloads")
+        if (!directory.exists()) directory.mkdirs()
+        
+        // Use a unique name based on bookId, languageCode, and serial
+        val fileName = "${bookId}_${languageCode}_${chapterSerial}.wav"
+        return File(directory, fileName)
+    }
+
+    private fun downloadAudio() {
+        val urlToDownload = if (!audioLink.isNullOrBlank()) audioLink!! else getAutoGuessedAudioUrl()
+        val localFile = getLocalAudioFile()
+
+        Toast.makeText(this, "Starting download...", Toast.LENGTH_SHORT).show()
+        
+        // Visual feedback: partial alpha during download
+        buttonDownload.animate().alpha(0.5f).setDuration(500).start()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val url = URL(urlToDownload)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.connect()
+
+                if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                    connection.inputStream.use { input ->
+                        FileOutputStream(localFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    
+                    withContext(Dispatchers.Main) {
+                        isAudioDownloaded = true
+                        buttonDownload.setImageResource(R.drawable.ic_checkmark)
+                        buttonDownload.animate().alpha(1.0f).setDuration(300).start()
+                        Toast.makeText(this@DetailActivity, "Download complete", Toast.LENGTH_SHORT).show()
+                        Log.d("AudioDownload", "Successfully downloaded to: ${localFile.absolutePath}")
+                    }
+                } else {
+                    throw Exception("Server returned code ${connection.responseCode}")
+                }
+            } catch (e: Exception) {
+                Log.e("AudioDownload", "Error downloading audio", e)
+                withContext(Dispatchers.Main) {
+                    buttonDownload.animate().alpha(1.0f).setDuration(300).start()
+                    Toast.makeText(this@DetailActivity, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    if (localFile.exists()) localFile.delete()
+                }
             }
         }
     }
@@ -1653,6 +1742,11 @@ class DetailActivity : AppCompatActivity() {
     }
 
     private fun playHumanAudio() {
+        if (!isAudioAvailable) {
+            Toast.makeText(this, "Audio not available for this chapter", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         // Check if we're resuming playback (player already has content)
         val isResuming = exoPlayer?.currentMediaItem != null && exoPlayer?.duration ?: 0 > 0
         
@@ -1664,7 +1758,11 @@ class DetailActivity : AppCompatActivity() {
             Log.d("AudioPlayer", "Resuming from position: $seekPos ms (2s back from $currentPos)")
         } else {
             // Starting fresh
-            val url = audioLink ?: getAutoGuessedAudioUrl()
+            val url = if (isAudioDownloaded) {
+                Uri.fromFile(getLocalAudioFile()).toString()
+            } else {
+                audioLink ?: getAutoGuessedAudioUrl()
+            }
             Log.d("AudioPlayer", "Starting new audio: $url")
             
 
@@ -1769,11 +1867,14 @@ class DetailActivity : AppCompatActivity() {
         
         buttonTts.animate().alpha(0f).setDuration(200).withEndAction {
             buttonTts.visibility = View.GONE
+            buttonDownload.visibility = View.GONE
             // Now show the compact player
             compactPlayer?.visibility = View.VISIBLE
             compactPlayer?.alpha = 0f
             compactPlayer?.animate()?.alpha(1f)?.setDuration(300)?.start()
         }.start()
+
+        buttonDownload.animate().alpha(0f).setDuration(200).start()
     }
 
     private fun collapseAudioPlayer() {
@@ -1787,6 +1888,12 @@ class DetailActivity : AppCompatActivity() {
             buttonTts.alpha = 0f
             val targetAlpha = if (isAudioAvailable) 1.0f else 0.4f
             buttonTts.animate().alpha(targetAlpha).setDuration(300).start()
+            
+            if (isAudioAvailable) {
+                buttonDownload.visibility = View.VISIBLE
+                buttonDownload.alpha = 0f
+                buttonDownload.animate().alpha(1.0f).setDuration(300).start()
+            }
             
             bookmarkButton.visibility = View.VISIBLE
             bookmarkButton.alpha = 0f
