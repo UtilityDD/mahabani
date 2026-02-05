@@ -154,7 +154,7 @@ class DetailActivity : AppCompatActivity() {
     // --- Compact Audio Player Variables ---
     private var compactPlayer: View? = null
     private var compactVisualizer: AudioVisualizerView? = null
-    private var btnCompactPlayPause: FloatingActionButton? = null
+    private var btnCompactPlayPause: ImageButton? = null
     private var btnCompactStop: ImageButton? = null
     private var btnCompactDownload: ImageButton? = null
     private val RECORD_AUDIO_PERMISSION_CODE = 101

@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Compact Audio Player - Horizontal Pill with Small Vibrating Line -->
+<!-- Compact Audio Player - Modern Minimal Design -->
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/audio_player_card"
     android:layout_width="wrap_content"
-    android:layout_height="48dp"
+    android:layout_height="44dp"
     android:layout_marginTop="16dp"
     android:layout_marginEnd="16dp"
-    app:cardBackgroundColor="#1A1A1A"
-    app:cardCornerRadius="24dp"
-    app:cardElevation="8dp"
+    app:cardBackgroundColor="#202020"
+    app:cardCornerRadius="22dp"
+    app:cardElevation="12dp"
     android:visibility="gone"
     android:alpha="0">
 
@@ -18,51 +18,64 @@
         android:layout_height="match_parent"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="14dp"
-        android:paddingEnd="14dp">
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
 
-        <!-- Small Vibrating Line Visualizer -->
-        <com.blackgrapes.kadachabuk.AudioVisualizerView
-            android:id="@+id/compact_visualizer_view"
-            android:layout_width="80dp"
-            android:layout_height="28dp"
-            android:layout_marginEnd="10dp"
-            android:background="#2A2A2A"
-            android:padding="3dp" />
+        <!-- Visualizer with Rounded Corners -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#2A2A2A"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="0dp"
+            android:layout_marginEnd="8dp">
+
+            <com.blackgrapes.kadachabuk.AudioVisualizerView
+                android:id="@+id/compact_visualizer_view"
+                android:layout_width="60dp"
+                android:layout_height="24dp"
+                android:background="@android:color/transparent"
+                android:padding="2dp" />
+
+        </androidx.cardview.widget.CardView>
 
         <!-- Stop Button -->
         <ImageButton
             android:id="@+id/btn_compact_stop"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginEnd="6dp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginEnd="4dp"
+            android:padding="2dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_stop"
             android:contentDescription="Stop"
-            app:tint="#B0B0B0" />
+            android:scaleType="fitCenter"
+            app:tint="#C0C0C0" />
 
         <!-- Download Button -->
         <ImageButton
             android:id="@+id/btn_compact_download"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginEnd="6dp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginEnd="4dp"
+            android:padding="2dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_download"
             android:contentDescription="Download audio for offline"
-            app:tint="#B0B0B0" />
+            android:scaleType="fitCenter"
+            app:tint="#C0C0C0" />
 
         <!-- Play/Pause Button -->
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
+        <ImageButton
             android:id="@+id/btn_compact_play_pause"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_pause"
             android:contentDescription="Pause"
-            app:fabSize="mini"
-            app:tint="#E0C090"
-            app:backgroundTint="#2A2A2A"
-            app:elevation="0dp" />
+            android:scaleType="fitCenter"
+            app:tint="#FFD700" />
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>
