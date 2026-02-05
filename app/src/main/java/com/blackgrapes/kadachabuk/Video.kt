@@ -30,7 +30,7 @@ data class Video(
             val linkForDetection = originalLink
             return when {
                 link.contains("youtube.com") || link.contains("youtu.be") -> VideoSource.YOUTUBE
-                link.contains("facebook.com") || link.contains("fb.watch") -> VideoSource.FACEBOOK
+                link.contains("facebook.com") || link.contains("fb.watch") || link.contains("fb.gg") -> VideoSource.FACEBOOK
                 else -> VideoSource.UNKNOWN
             }
         }

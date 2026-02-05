@@ -118,78 +118,97 @@ class VideoActivity : AppCompatActivity(), VideoPlaybackListener, OnFavoriteChan
         errorGroup.visibility = View.GONE
         tabLayout.visibility = View.GONE
         viewPager.visibility = View.GONE
-        // The base part of your Google Sheet URL
-        // Updated to new sheet: 1LCQWFkeaEA6hwGCYM14cVlh1SX0ui5_n5faHf47--tM
-        val sheetId = "1LCQWFkeaEA6hwGCYM14cVlh1SX0ui5_n5faHf47--tM"
-        val gid = "113075560" // The GID for your "video" sheet
-        val url = "https://docs.google.com/spreadsheets/d/$sheetId/export?gid=$gid&single=true&output=csv"
+        // Standard Google Sheets CSV export URL
+        val sheetId = "1wZSxXRZHkgbTG3oPDJn_JbKy4m3BWELah67XcgBz6BA"
+        val gid = "1681780330"
+        
+        // This is the most reliable URL for public Google Sheets CSV export
+        val url = "https://docs.google.com/spreadsheets/d/$sheetId/export?gid=$gid&format=csv"
+
+        android.util.Log.d("VideoActivity", "Fetching from URL: $url")
 
         val stringRequest = StringRequest(Request.Method.GET, url,
             { response ->
+                android.util.Log.d("VideoActivity", "Response received, length: ${response.length}")
+                
+                // Safety check: if response starts with "PK", it's an Excel/ZIP file, not CSV
+                if (response.startsWith("PK")) {
+                    android.util.Log.e("VideoActivity", "Response is BINARY/ZIP (Excel format), not CSV!")
+                    runOnUiThread {
+                        progressBar.visibility = View.GONE
+                        errorGroup.visibility = View.VISIBLE
+                        errorMessageTextView.text = "Error: Sheet is in Excel format. Please 'Publish to Web' as 'CSV'."
+                    }
+                    return@StringRequest
+                }
+
+                android.util.Log.d("VideoActivity", "First 100 chars: ${response.take(100).replace("\n", "[NL]")}")
+                
                 // Launch a coroutine to handle parsing in the background
                 CoroutineScope(Dispatchers.Main).launch {
-                    val videoList = withContext(Dispatchers.IO) {
-                        // This heavy parsing now happens on a background thread
-                        parseCsv(response)
-                    }
-                    allVideos = videoList // Store the full list
-
-                    // Now, update the UI on the main thread
-                    progressBar.visibility = View.GONE
-                    tabLayout.visibility = View.VISIBLE
-                    viewPager.visibility = View.VISIBLE
-
-                    val favoritePrefs = getSharedPreferences("VideoFavorites", Context.MODE_PRIVATE)
-                    val favoriteVideos = videoList.filter { favoritePrefs.getBoolean(it.getUniqueId(), false) }
-
-                    val videoMap = videoList.groupBy { it.category }.toMutableMap()
-                    videoMap["Favorites"] = favoriteVideos
-
-                    val categories = listOf("Favorites", "Speech", "Mahanam", "Vedic Song")
-                    val fragments = categories.mapIndexed { index, category ->
-                        val isFavoritesTab = index == 0
-                        VideoListFragment.newInstance(videoMap[category] ?: emptyList(), isFavoritesTab) // This line is now valid
-                    }
-
-                    val adapter = VideoPagerAdapter(this@VideoActivity, fragments)
-                    viewPager.adapter = adapter
-
-                    // Set custom icons for tabs
-                    val tabIcons = listOf(
-                        R.drawable.ic_favorite_filled,
-                        0, // No icon for Speech
-                        0, // No icon for Mahanam
-                        0  // No icon for Vedic Song
-                    )
-
-                    TabLayoutMediator(tabLayout, viewPager) { tab, position ->
-                        val category = categories[position]
-                        val count = videoMap[category]?.size ?: 0
-
-                        if (position == 0) { // This is the "Favorites" tab
-                            tab.setIcon(R.drawable.ic_favorite_filled)
-                            tab.contentDescription = "Favorites ($count)"
-
-                            // Create and configure the badge
-                            val badge = tab.orCreateBadge
-                            badge.number = count
-                            badge.isVisible = count > 0
-                        } else {
-                            // For other tabs, just set the text with the count
-                            tab.text = "$category ($count)"
+                    try {
+                        val videoList = withContext(Dispatchers.IO) {
+                            parseCsv(response)
                         }
-                    }.attach()
+                        allVideos = videoList 
 
-                    // Restore the previously selected tab
-                    viewPager.setCurrentItem(currentViewPagerPosition, false)
+                        android.util.Log.d("VideoActivity", "Parsed ${videoList.size} videos")
 
-                    originalTitle = "Video Links (${videoList.size})"
-                    toolbar.title = originalTitle
+                        if (videoList.isEmpty()) {
+                            progressBar.visibility = View.GONE
+                            errorGroup.visibility = View.VISIBLE
+                            errorMessageTextView.text = "No valid videos found in the sheet."
+                            return@launch
+                        }
+
+                        // Update UI
+                        progressBar.visibility = View.GONE
+                        tabLayout.visibility = View.VISIBLE
+                        viewPager.visibility = View.VISIBLE
+
+                        val favoritePrefs = getSharedPreferences("VideoFavorites", Context.MODE_PRIVATE)
+                        val favoriteVideos = videoList.filter { favoritePrefs.getBoolean(it.getUniqueId(), false) }
+
+                        val videoMap = videoList.groupBy { it.category }.toMutableMap()
+                        videoMap["Favorites"] = favoriteVideos
+
+                        val categories = listOf("Favorites", "Speech", "Mahanam", "Vedic Song")
+                        val fragments = categories.mapIndexed { index, category ->
+                            VideoListFragment.newInstance(videoMap[category] ?: emptyList(), index == 0)
+                        }
+
+                        viewPager.adapter = VideoPagerAdapter(this@VideoActivity, fragments)
+                        
+                        TabLayoutMediator(tabLayout, viewPager) { tab, position ->
+                            val category = categories[position]
+                            val count = videoMap[category]?.size ?: 0
+                            if (position == 0) {
+                                tab.setIcon(R.drawable.ic_favorite_filled)
+                                tab.orCreateBadge.apply {
+                                    number = count
+                                    isVisible = count > 0
+                                }
+                            } else {
+                                tab.text = "$category ($count)"
+                            }
+                        }.attach()
+
+                        viewPager.setCurrentItem(currentViewPagerPosition, false)
+                        toolbar.title = "Video Links (${videoList.size})"
+                        
+                    } catch (e: Exception) {
+                        android.util.Log.e("VideoActivity", "Error parsing CSV", e)
+                        progressBar.visibility = View.GONE
+                        errorGroup.visibility = View.VISIBLE
+                        errorMessageTextView.text = "Parsing error: ${e.message}"
+                    }
                 }
             },
             { error ->
+                android.util.Log.e("VideoActivity", "Network error: ${error.message}")
                 progressBar.visibility = View.GONE
                 errorGroup.visibility = View.VISIBLE
+                errorMessageTextView.text = "Network error. Please check your internet."
             })
 
         Volley.newRequestQueue(this).add(stringRequest)
@@ -197,27 +216,104 @@ class VideoActivity : AppCompatActivity(), VideoPlaybackListener, OnFavoriteChan
 
     private fun parseCsv(csvData: String): List<Video> {
         val videos = mutableListOf<Video>()
-        csvReader {
-            skipEmptyLine = true
-        }.open(csvData.byteInputStream()) {
-            // Read all rows but skip the first (header) row
-            readAllAsSequence().drop(1).forEach { row ->
-                if (row.size >= 4) {
-                    val link = row[1].trim()
-                    // Only add the video if it's a YouTube link
-                    if (link.contains("youtube.com") || link.contains("youtu.be")) {
-                        val video = Video(
-                            sl = row[0].trim(),
-                            originalLink = link,
-                            remark = row[2].trim(),
-                            category = row[3].trim()
-                        )
-                        videos.add(video)
-                    }
+        val lines = csvData.lines().filter { it.isNotBlank() }
+        if (lines.size < 2) {
+            android.util.Log.w("VideoActivity", "CSV has only ${lines.size} lines, no data found.")
+            return emptyList()
+        }
+        
+        // Detect delimiter from header (e.g. sl,link,remark,category)
+        val header = lines[0]
+        val delimiter = if (header.contains("\t")) "\t" else ","
+        android.util.Log.d("VideoActivity", "Header: $header | Delimiter: '$delimiter'")
+
+        lines.drop(1).forEach { line ->
+            val parts = splitCsvLine(line, delimiter)
+            if (parts.size >= 4) {
+                val sl = parts[0].trim().removeSurrounding("\"")
+                val rawLink = parts[1].trim().removeSurrounding("\"")
+                val remark = parts[2].trim().removeSurrounding("\"")
+                val category = parts[3].trim().removeSurrounding("\"")
+                
+                val link = extractVideoUrl(rawLink)
+                if (link.isNotEmpty()) {
+                    videos.add(Video(sl, link, remark, category))
+                    android.util.Log.d("VideoActivity", "Parsed: $remark | Category: $category")
                 }
+            } else {
+                android.util.Log.w("VideoActivity", "Skipping malformed line: $line")
             }
         }
         return videos
+    }
+
+    private fun splitCsvLine(line: String, delimiter: String): List<String> {
+        // Simple splitter, could be improved for quoted commas but usually enough for Sheets
+        return if (delimiter == "\t") {
+            line.split("\t")
+        } else {
+            // Improved comma split that handles some quoted values
+            val result = mutableListOf<String>()
+            var start = 0
+            var inQuotes = false
+            for (i in line.indices) {
+                if (line[i] == '\"') inQuotes = !inQuotes
+                else if (line[i] == ',' && !inQuotes) {
+                    result.add(line.substring(start, i))
+                    start = i + 1
+                }
+            }
+            result.add(line.substring(start))
+            result
+        }
+    }
+    
+    private fun extractVideoUrl(input: String): String {
+        android.util.Log.d("VideoActivity", "Extracting from input: $input")
+        
+        // 1. YouTube Iframe
+        if (input.contains("<iframe") && input.contains("youtube.com/embed/")) {
+            val srcPattern = """src="([^"]*youtube\.com/embed/[^"]*)"""".toRegex()
+            val match = srcPattern.find(input)
+            if (match != null) {
+                val embedUrl = match.groupValues[1]
+                val videoId = embedUrl.substringAfter("youtube.com/embed/").substringBefore("?")
+                return "https://www.youtube.com/watch?v=$videoId"
+            }
+        }
+        
+        // 2. Facebook Iframe
+        if (input.contains("<iframe") && input.contains("facebook.com/")) {
+            val srcPattern = """src="([^"]*facebook\.com/[^"]*)"""".toRegex()
+            val match = srcPattern.find(input)
+            if (match != null) {
+                // If it's already an embed URL, we might want to extract the actual video URL
+                // but usually the Facebook plugin URL contains the href parameter.
+                val embedUrl = match.groupValues[1]
+                if (embedUrl.contains("href=")) {
+                    val actualUrl = embedUrl.substringAfter("href=").substringBefore("&").replace("%3A", ":").replace("%2F", "/")
+                    return actualUrl
+                }
+                return embedUrl
+            }
+        }
+
+        // 3. Direct YouTube Link
+        if (input.contains("youtube.com") || input.contains("youtu.be")) {
+            return input
+        }
+
+        // 4. Direct Facebook Link
+        if (input.contains("facebook.com") || input.contains("fb.watch") || input.contains("fb.gg")) {
+            return input
+        }
+        
+        // Return original if it looks like a URL but not an iframe
+        if (!input.contains("<") && (input.startsWith("http") || input.contains("."))) {
+            return input
+        }
+        
+        return ""
     }
 
     override fun onVideoPlaybackChanged(videoTitle: String?) {

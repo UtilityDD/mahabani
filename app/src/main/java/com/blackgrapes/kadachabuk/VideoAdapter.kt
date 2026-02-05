@@ -55,10 +55,24 @@ class VideoAdapter(
     override fun onBindViewHolder(holder: VideoViewHolder, position: Int) {
         val video = videos[position]
         holder.remark.text = "${position + 1}. ${video.remark}"
-        val videoId = video.getYouTubeVideoId()
-        if (videoId != null) {
-            val thumbnailUrl = "https://img.youtube.com/vi/$videoId/0.jpg"
-            Picasso.get().load(thumbnailUrl).into(holder.thumbnail)
+        
+        // --- THUMBNAIL LOGIC ---
+        when (video.source) {
+            VideoSource.YOUTUBE -> {
+                val videoId = video.getYouTubeVideoId()
+                if (videoId != null) {
+                    val thumbnailUrl = "https://img.youtube.com/vi/$videoId/0.jpg"
+                    Picasso.get().load(thumbnailUrl).placeholder(R.drawable.rounded_corner_background).into(holder.thumbnail)
+                }
+            }
+            VideoSource.FACEBOOK -> {
+                // Facebook doesn't have a simple thumbnail URL like YouTube.
+                // Using a dedicated Facebook icon/placeholder.
+                Picasso.get().load(R.drawable.ic_facebook).into(holder.thumbnail)
+            }
+            else -> {
+                holder.thumbnail.setImageResource(R.drawable.rounded_corner_background)
+            }
         }
 
         val isFavorite = favoritePrefs.getBoolean(video.getUniqueId(), false)
@@ -102,11 +116,31 @@ class VideoAdapter(
             holder.webView.visibility = View.VISIBLE
             holder.collapseButton.visibility = View.VISIBLE
 
-            val htmlContent = """
-                <html><body style="margin:0;padding:0;background-color:black;">
-                <iframe width="100%" height="100%" src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1" frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>
-                </body></html>
-            """.trimIndent()
+            val htmlContent = when (video.source) {
+                VideoSource.YOUTUBE -> {
+                    val videoId = video.getYouTubeVideoId()
+                    """
+                    <html><body style="margin:0;padding:0;background-color:black;">
+                    <iframe width="100%" height="100%" src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1" frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>
+                    </body></html>
+                    """.trimIndent()
+                }
+                VideoSource.FACEBOOK -> {
+                    val encodedUrl = java.net.URLEncoder.encode(video.link, "UTF-8")
+                    """
+                    <html><body style="margin:0;padding:0;background-color:black;">
+                    <iframe src="https://www.facebook.com/plugins/video.php?href=$encodedUrl&show_text=0&width=560&autoplay=1" width="100%" height="100%" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowfullscreen="true" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen="true"></iframe>
+                    </body></html>
+                    """.trimIndent()
+                }
+                else -> {
+                    """
+                    <html><body style="margin:0;padding:0;background-color:black;display:flex;justify-content:center;align-items:center;">
+                    <a href="${video.link}" style="color:white;text-decoration:none;font-family:sans-serif;">Open Video Stream</a>
+                    </body></html>
+                    """.trimIndent()
+                }
+            }
 
             holder.webView.settings.javaScriptEnabled = true
             holder.webView.webChromeClient = object : WebChromeClient() {
