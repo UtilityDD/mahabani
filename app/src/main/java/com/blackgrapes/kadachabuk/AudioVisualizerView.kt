@@ -4,11 +4,13 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.media.audiofx.Visualizer
 import android.util.AttributeSet
 import android.view.View
 import kotlin.math.abs
 import kotlin.math.sin
+import kotlin.random.Random
 
 class AudioVisualizerView @JvmOverloads constructor(
     context: Context,
@@ -19,42 +21,40 @@ class AudioVisualizerView @JvmOverloads constructor(
     private var bytes: ByteArray? = null
     private var visualizer: Visualizer? = null
     private val paint = Paint()
-    private val barColor = Color.parseColor("#FFD700") // Bright gold for visibility
-    private val barWidth = 10f
-    private val gap = 4f
+    private val path = Path()
+    private val barColor = Color.parseColor("#FFD700")
     
     private var isAnimating = false
+    private var animationStartTime = 0L
+    private val random = Random(System.currentTimeMillis())
+    
+    private var volumePhase = 0.0
+    private var currentVolume = 0.5f
+    
     private val animationRunnable = object : Runnable {
         override fun run() {
             if (isAnimating) {
                 invalidate()
-                postDelayed(this, 50) // Update every 50ms for smooth animation
+                postDelayed(this, 50) // 20 FPS
             }
         }
     }
 
     init {
         paint.color = barColor
-        paint.strokeWidth = barWidth
+        paint.strokeWidth = 3f
         paint.isAntiAlias = true
-        paint.style = Paint.Style.FILL
+        paint.style = Paint.Style.STROKE
         paint.strokeCap = Paint.Cap.ROUND
+        paint.strokeJoin = Paint.Join.ROUND
     }
 
-    // Link this view to the player's audio session
     fun linkTo(audioSessionId: Int) {
-        if (visualizer != null) {
-            android.util.Log.d("AudioVisualizerView", "Visualizer already linked, skipping")
-            return
-        }
+        if (visualizer != null) return
 
-        android.util.Log.d("AudioVisualizerView", "Attempting to link to session: $audioSessionId")
-        
         try {
             visualizer = Visualizer(audioSessionId).apply {
                 captureSize = Visualizer.getCaptureSizeRange()[0]
-                android.util.Log.d("AudioVisualizerView", "Capture size: $captureSize")
-                
                 setDataCaptureListener(object : Visualizer.OnDataCaptureListener {
                     override fun onWaveFormDataCapture(
                         visualizer: Visualizer?,
@@ -62,30 +62,21 @@ class AudioVisualizerView @JvmOverloads constructor(
                         samplingRate: Int
                     ) {
                         bytes = waveform
-                        // Log only occasionally to avoid spam
-                        if (System.currentTimeMillis() % 1000 < 100) {
-                            android.util.Log.v("AudioVisualizerView", "Waveform: ${waveform?.size} bytes")
-                        }
                     }
-
-                    override fun onFftDataCapture(
-                        visualizer: Visualizer?,
-                        fft: ByteArray?,
-                        samplingRate: Int
-                    ) {}
+                    override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, s: Int) {}
                 }, Visualizer.getMaxCaptureRate(), true, false)
                 enabled = true
-                android.util.Log.d("AudioVisualizerView", "Visualizer enabled")
             }
         } catch (e: Exception) {
-            android.util.Log.e("AudioVisualizerView", "Visualizer failed, using animation", e)
+            android.util.Log.e("AudioVisualizerView", "Visualizer failed", e)
         }
     }
 
     fun startAnimation() {
         if (!isAnimating) {
             isAnimating = true
-            android.util.Log.d("AudioVisualizerView", "Animation started")
+            animationStartTime = System.currentTimeMillis()
+            volumePhase = 0.0
             post(animationRunnable)
         }
     }
@@ -93,7 +84,6 @@ class AudioVisualizerView @JvmOverloads constructor(
     fun stopAnimation() {
         isAnimating = false
         removeCallbacks(animationRunnable)
-        android.util.Log.d("AudioVisualizerView", "Animation stopped")
     }
 
     fun release() {
@@ -108,55 +98,40 @@ class AudioVisualizerView @JvmOverloads constructor(
         
         val width = width.toFloat()
         val height = height.toFloat()
-        val numBars = 8
+        val centerY = height / 2
         
-        val currentBytes = bytes
-        val time = System.currentTimeMillis()
+        // Simulate volume changes (slow, smooth)
+        volumePhase += 0.04 // Slow progression
         
-        // More strict validation - check for actual varying amplitudes
-        var hasValidData = false
-        if (currentBytes != null && currentBytes.size > 20) {
-            var minAmp = 128
-            var maxAmp = 0
-            for (b in currentBytes) {
-                val amp = abs(b.toInt())
-                if (amp < minAmp) minAmp = amp
-                if (amp > maxAmp) maxAmp = amp
-            }
-            // Only consider valid if there's variation AND significant amplitude
-            hasValidData = (maxAmp - minAmp) > 5 && maxAmp > 15
-        }
+        // Create smooth volume envelope
+        val mainVolume = abs(sin(volumePhase * 1.5)).toFloat() * 0.7f + 0.3f // 0.3 to 1.0
+        val variation = sin(volumePhase * 4.0).toFloat() * 0.1f
+        currentVolume = (mainVolume + variation).coerceIn(0.2f, 1.0f)
         
-        for (i in 0 until numBars) {
-            val barHeight = if (hasValidData) {
-                // Use real waveform data
-                val startIdx = (i * currentBytes!!.size / numBars).coerceIn(0, currentBytes.size - 1)
-                val endIdx = ((i + 1) * currentBytes.size / numBars).coerceIn(0, currentBytes.size - 1)
-                
-                var maxAmplitude = 0
-                for (idx in startIdx until endIdx) {
-                    val amplitude = abs(currentBytes[idx].toInt())
-                    if (amplitude > maxAmplitude) maxAmplitude = amplitude
-                }
-                
-                val normalizedAmplitude = (maxAmplitude / 128f) * 8f // Slightly reduced boost
-                (height * normalizedAmplitude).coerceIn(10f, height * 0.90f)
-            } else {
-                // Animated fallback - simulate audio waves
-                val phase = (time / 100.0) + (i * 0.5)
-                val wave1 = sin(phase * 2.0)
-                val wave2 = sin(phase * 3.0 + 1.0) * 0.5
-                val combined = (wave1 + wave2) / 1.5
-                val amplitude = (abs(combined) * 0.7 + 0.3).toFloat()
-                (height * amplitude).coerceIn(12f, height * 0.9f)
-            }
-
-            val left = i * (width / numBars) + 2f
-            val top = (height - barHeight) / 2
-            val right = left + barWidth
-            val bottom = top + barHeight
+        // Draw smooth horizontal waveform
+        path.reset()
+        val numPoints = 40 // Points along the wave
+        
+        for (i in 0..numPoints) {
+            val x = (i / numPoints.toFloat()) * width
             
-            canvas.drawRoundRect(left, top, right, bottom, 3f, 3f, paint)
+            // Create smooth wave using multiple sine components
+            val xPhase = (volumePhase + i * 0.15)
+            val wave1 = sin(xPhase * 2.0).toFloat()
+            val wave2 = sin(xPhase * 5.0).toFloat() * 0.3f
+            val combinedWave = wave1 + wave2
+            
+            // Scale by current volume
+            val amplitude = (height * 0.25f * currentVolume) * combinedWave
+            val y = centerY + amplitude
+            
+            if (i == 0) {
+                path.moveTo(x, y)
+            } else {
+                path.lineTo(x, y)
+            }
         }
+        
+        canvas.drawPath(path, paint)
     }
 }
