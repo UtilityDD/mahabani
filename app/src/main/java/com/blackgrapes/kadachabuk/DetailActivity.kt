@@ -1847,6 +1847,7 @@ class DetailActivity : AppCompatActivity() {
                 android.util.Log.d("AudioVisualizer", "Linking to audio session: $sessionId")
                 if (sessionId != 0) {
                     compactVisualizer?.linkTo(sessionId)
+                    compactVisualizer?.startAnimation()
                 } else {
                     android.util.Log.e("AudioVisualizer", "Invalid audio session ID!")
                 }

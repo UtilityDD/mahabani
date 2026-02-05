@@ -3,14 +3,14 @@ package com.blackgrapes.kadachabuk
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.Path
+import android.graphics.Shader
 import android.media.audiofx.Visualizer
 import android.util.AttributeSet
 import android.view.View
-import kotlin.math.abs
-import kotlin.math.sin
-import kotlin.random.Random
+import kotlin.math.hypot
+import kotlin.math.log10
 
 class AudioVisualizerView @JvmOverloads constructor(
     context: Context,
@@ -18,65 +18,129 @@ class AudioVisualizerView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private var bytes: ByteArray? = null
     private var visualizer: Visualizer? = null
-    private val paint = Paint()
-    private val path = Path()
-    private val barColor = Color.parseColor("#FFD700")
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    
+    private val numBars = 20
+    private val barWidth = 8f
+    private val barGap = 4f
+    
+    // Arrays to store frequency data and smoothed heights
+    private val magnitudes = FloatArray(numBars)
+    private val currentHeights = FloatArray(numBars)
+    
+    // Auto-gain variables
+    private var maxObservedMagnitude = 32f // Start with a reasonable baseline
+    private val autoGainDecay = 0.995f    // Slowly lower the floor
+    
+    private val barColorStart = Color.parseColor("#FFE0B0") // Light Gold
+    private val barColorEnd = Color.parseColor("#FFD700")   // Gold
     
     private var isAnimating = false
-    private var animationStartTime = 0L
-    private val random = Random(System.currentTimeMillis())
     
-    private var volumePhase = 0.0
-    private var currentVolume = 0.5f
-    
+    // Physics constants for smoothing
+    private val decayRate = 0.12f // Slightly slower fall for more "body"
+    private val riseSpeed = 0.5f  // Smooth rise
+
     private val animationRunnable = object : Runnable {
         override fun run() {
             if (isAnimating) {
+                updateSmoothing()
                 invalidate()
-                postDelayed(this, 50) // 20 FPS
+                postDelayed(this, 16) // ~60 FPS
             }
         }
     }
 
     init {
-        paint.color = barColor
-        paint.strokeWidth = 3f
-        paint.isAntiAlias = true
-        paint.style = Paint.Style.STROKE
         paint.strokeCap = Paint.Cap.ROUND
-        paint.strokeJoin = Paint.Join.ROUND
+        paint.style = Paint.Style.FILL
+
+        glowPaint.strokeCap = Paint.Cap.ROUND
+        glowPaint.style = Paint.Style.FILL
+    }
+
+    private fun updateSmoothing() {
+        // Slowly decay the auto-gain baseline to keep it reactive if audio gets quieter
+        maxObservedMagnitude = (maxObservedMagnitude * autoGainDecay).coerceAtLeast(16f)
+        
+        for (i in 0 until numBars) {
+            val target = magnitudes[i]
+            if (target > currentHeights[i]) {
+                currentHeights[i] = currentHeights[i] + (target - currentHeights[i]) * riseSpeed
+            } else {
+                currentHeights[i] = (currentHeights[i] - decayRate).coerceAtLeast(0.01f)
+            }
+        }
     }
 
     fun linkTo(audioSessionId: Int) {
-        if (visualizer != null) return
-
+        release() 
+        
         try {
             visualizer = Visualizer(audioSessionId).apply {
-                captureSize = Visualizer.getCaptureSizeRange()[0]
+                captureSize = Visualizer.getCaptureSizeRange()[1] // Max size
                 setDataCaptureListener(object : Visualizer.OnDataCaptureListener {
-                    override fun onWaveFormDataCapture(
-                        visualizer: Visualizer?,
-                        waveform: ByteArray?,
-                        samplingRate: Int
-                    ) {
-                        bytes = waveform
+                    override fun onWaveFormDataCapture(v: Visualizer?, waveform: ByteArray?, s: Int) {}
+                    
+                    override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, samplingRate: Int) {
+                        if (fft != null) {
+                            processFft(fft)
+                        }
                     }
-                    override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, s: Int) {}
-                }, Visualizer.getMaxCaptureRate(), true, false)
+                }, Visualizer.getMaxCaptureRate() / 2, false, true)
                 enabled = true
             }
         } catch (e: Exception) {
-            android.util.Log.e("AudioVisualizerView", "Visualizer failed", e)
+            android.util.Log.e("AudioVisualizerView", "Visualizer link failed: ${e.message}")
+        }
+    }
+
+    private fun processFft(fft: ByteArray) {
+        // Speech is concentrated in lower frequencies.
+        // Even with 44.1kHz sampling, we mostly care about 0-5kHz for speech.
+        // N = size/2. Usable = indices 2..N.
+        val n = (fft.size / 2)
+        
+        // Focus bars on the first ~25% of the spectrum (audible voice range)
+        val usableRange = (n * 0.25f).toInt().coerceAtLeast(numBars)
+        val barsPerGroup = (usableRange / numBars).coerceAtLeast(1)
+        
+        var currentMaxThisFrame = 0f
+        
+        for (i in 0 until numBars) {
+            var sum = 0f
+            for (j in 0 until barsPerGroup) {
+                val index = 2 + (i * barsPerGroup + j) * 2
+                if (index + 1 < fft.size) {
+                    val r = fft[index].toFloat()
+                    val im = fft[index + 1].toFloat()
+                    val mag = hypot(r, im)
+                    sum += mag
+                }
+            }
+            val average = sum / barsPerGroup
+            if (average > currentMaxThisFrame) currentMaxThisFrame = average
+            
+            // Auto-Gain: Update the global max observed magnitude
+            if (average > maxObservedMagnitude) {
+                maxObservedMagnitude = average
+            }
+
+            // Normalization using Auto-Gain
+            val sensitivityLimit = maxObservedMagnitude.coerceAtLeast(16f)
+            val normalized = (log10(average + 1f) / log10(sensitivityLimit + 1f)).coerceIn(0f, 1f)
+            
+            // Add a small nonlinear boost to lower levels to make them visible
+            // Power of 0.7 expands smaller values
+            magnitudes[i] = Math.pow(normalized.toDouble(), 0.7).toFloat()
         }
     }
 
     fun startAnimation() {
         if (!isAnimating) {
             isAnimating = true
-            animationStartTime = System.currentTimeMillis()
-            volumePhase = 0.0
             post(animationRunnable)
         }
     }
@@ -84,54 +148,50 @@ class AudioVisualizerView @JvmOverloads constructor(
     fun stopAnimation() {
         isAnimating = false
         removeCallbacks(animationRunnable)
+        // Reset heights on stop
+        for (i in 0 until numBars) {
+            magnitudes[i] = 0f
+            currentHeights[i] = 0f
+        }
+        invalidate()
     }
 
     fun release() {
-        visualizer?.release()
+        try {
+            visualizer?.enabled = false
+            visualizer?.release()
+        } catch (e: Exception) {}
         visualizer = null
-        bytes = null
         stopAnimation()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        paint.shader = LinearGradient(0f, h.toFloat(), 0f, 0f, barColorStart, barColorEnd, Shader.TileMode.CLAMP)
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         
-        val width = width.toFloat()
-        val height = height.toFloat()
-        val centerY = height / 2
+        val w = width.toFloat()
+        val h = height.toFloat()
         
-        // Simulate volume changes (slow, smooth)
-        volumePhase += 0.04 // Slow progression
+        val totalBarWidth = barWidth + barGap
+        val startX = (w - (numBars * totalBarWidth - barGap)) / 2f
         
-        // Create smooth volume envelope
-        val mainVolume = abs(sin(volumePhase * 1.5)).toFloat() * 0.7f + 0.3f // 0.3 to 1.0
-        val variation = sin(volumePhase * 4.0).toFloat() * 0.1f
-        currentVolume = (mainVolume + variation).coerceIn(0.2f, 1.0f)
-        
-        // Draw smooth horizontal waveform
-        path.reset()
-        val numPoints = 40 // Points along the wave
-        
-        for (i in 0..numPoints) {
-            val x = (i / numPoints.toFloat()) * width
+        for (i in 0 until numBars) {
+            val barHeight = currentHeights[i] * h * 0.9f
+            val x = startX + i * totalBarWidth
+            val top = h - barHeight
             
-            // Create smooth wave using multiple sine components
-            val xPhase = (volumePhase + i * 0.15)
-            val wave1 = sin(xPhase * 2.0).toFloat()
-            val wave2 = sin(xPhase * 5.0).toFloat() * 0.3f
-            val combinedWave = wave1 + wave2
+            // Draw Glow
+            canvas.drawRoundRect(x - 2f, top - 2f, x + barWidth + 2f, h, 6f, 6f, glowPaint.apply { 
+                color = barColorEnd
+                alpha = 40 
+            })
             
-            // Scale by current volume
-            val amplitude = (height * 0.25f * currentVolume) * combinedWave
-            val y = centerY + amplitude
-            
-            if (i == 0) {
-                path.moveTo(x, y)
-            } else {
-                path.lineTo(x, y)
-            }
+            // Draw Main Bar
+            canvas.drawRoundRect(x, top, x + barWidth, h, 4f, 4f, paint)
         }
-        
-        canvas.drawPath(path, paint)
     }
 }
