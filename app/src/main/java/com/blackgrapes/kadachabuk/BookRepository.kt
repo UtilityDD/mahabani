@@ -24,6 +24,10 @@ private const val GOOGLE_SHEET_URL_SUFFIX = "&format=csv"
 private const val CONTRIBUTORS_PREFS = "ContributorsPrefs"
 private const val ABOUT_INFO_PREFS = "AboutInfoPrefs"
 private const val VERSION_INFO_PREFS = "VersionInfoPrefs"
+private const val VIDEO_LINKS_PREFS = "VideoLinksPrefs"
+
+private const val VIDEO_SHEET_ID = "1wZSxXRZHkgbTG3oPDJn_JbKy4m3BWELah67XcgBz6BA"
+private const val VIDEO_GID = "1681780330"
 
 private const val LIBRARY_METADATA_URL = "https://docs.google.com/spreadsheets/d/1wZSxXRZHkgbTG3oPDJn_JbKy4m3BWELah67XcgBz6BA/export?gid=0$GOOGLE_SHEET_URL_SUFFIX"
 
@@ -721,5 +725,127 @@ class BookRepository(private val context: Context) {
             }
         }
         return books
+    }
+
+    suspend fun getVideos(forceRefresh: Boolean = false): Result<List<Video>> {
+        return withContext(Dispatchers.IO) {
+            val prefs = context.getSharedPreferences(VIDEO_LINKS_PREFS, Context.MODE_PRIVATE)
+            val cacheKey = "video_links_csv"
+            
+            // 1. Try Cache First
+            if (!forceRefresh) {
+                val cachedCsv = prefs.getString(cacheKey, null)
+                if (!cachedCsv.isNullOrEmpty()) {
+                    Log.d("BookRepository", "Video Cache Hit. Parsing cached CSV.")
+                    val cachedVideos = parseVideoCsv(cachedCsv)
+                    if (cachedVideos.isNotEmpty()) {
+                        return@withContext Result.success(cachedVideos)
+                    }
+                }
+            }
+
+            // 2. Fetch from Network
+            Log.d("BookRepository", "Video Cache Miss or Force Refresh. Fetching from network.")
+            try {
+                val urlString = "https://docs.google.com/spreadsheets/d/$VIDEO_SHEET_ID/export?gid=$VIDEO_GID$GOOGLE_SHEET_URL_SUFFIX"
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.instanceFollowRedirects = true
+                connection.connect()
+
+                if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                    val csvData = connection.inputStream.bufferedReader().use { it.readText() }
+                    if (csvData.isNotEmpty() && !csvData.startsWith("PK")) { // PK check for ZIP/Excel
+                        // Save to cache
+                        prefs.edit().putString(cacheKey, csvData).apply()
+                        Log.d("BookRepository", "Video CSV saved to cache.")
+                        
+                        val videos = parseVideoCsv(csvData)
+                        Result.success(videos)
+                    } else {
+                        Result.failure(Exception("Downloaded CSV layout is invalid or binary."))
+                    }
+                } else {
+                    Result.failure(Exception("Failed to download videos: ${connection.responseCode}"))
+                }
+            } catch (e: Exception) {
+                Log.e("BookRepository", "Error fetching videos", e)
+                // Fallback to cache if network fails
+                val cachedCsv = prefs.getString(cacheKey, null)
+                if (!cachedCsv.isNullOrEmpty()) {
+                    Result.success(parseVideoCsv(cachedCsv))
+                } else {
+                    Result.failure(e)
+                }
+            }
+        }
+    }
+
+    private fun parseVideoCsv(csvData: String): List<Video> {
+        val videos = mutableListOf<Video>()
+        try {
+            csvReader { skipEmptyLine = true }.readAllWithHeader(csvData).forEach { row ->
+                // Columns: sl, link, remark, category
+                val sl = row["sl"]?.trim() ?: ""
+                val rawLink = row["link"]?.trim() ?: ""
+                val remark = row["remark"]?.trim() ?: ""
+                val category = row["category"]?.trim() ?: ""
+
+                val link = extractVideoUrl(rawLink)
+                if (link.isNotEmpty()) {
+                    videos.add(Video(sl, link, remark, category))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("BookRepository", "Error parsing video CSV", e)
+        }
+        return videos
+    }
+
+    private fun extractVideoUrl(input: String): String {
+        // 1. YouTube Iframe
+        if (input.contains("<iframe") && input.contains("youtube.com/embed/")) {
+            val srcPattern = """src="([^"]*youtube\.com/embed/[^"]*)"""".toRegex()
+            val match = srcPattern.find(input)
+            if (match != null) {
+                val embedUrl = match.groupValues[1]
+                val videoId = embedUrl.substringAfter("youtube.com/embed/").substringBefore("?")
+                return "https://www.youtube.com/watch?v=$videoId"
+            }
+        }
+        
+        // 2. Facebook Iframe
+        if (input.contains("<iframe") && input.contains("facebook.com/")) {
+            val srcPattern = """src="([^"]*facebook\.com/[^"]*)"""".toRegex()
+            val match = srcPattern.find(input)
+            if (match != null) {
+                val embedUrl = match.groupValues[1]
+                if (embedUrl.contains("href=")) {
+                    val actualUrl = embedUrl.substringAfter("href=").substringBefore("&").replace("%3A", ":").replace("%2F", "/")
+                    return actualUrl
+                }
+                return embedUrl
+            }
+        }
+
+        // 3. Direct YouTube Link
+        if (input.contains("youtube.com") || input.contains("youtu.be")) {
+            return input
+        }
+
+        // 4. Direct Facebook Link
+        if (input.contains("facebook.com") || input.contains("fb.watch") || input.contains("fb.gg")) {
+            return input
+        }
+        
+        // Return original if it looks like a URL but not an iframe
+        if (!input.contains("<") && (input.startsWith("http") || input.contains("."))) {
+            return input
+        }
+        
+        return ""
     }
 }

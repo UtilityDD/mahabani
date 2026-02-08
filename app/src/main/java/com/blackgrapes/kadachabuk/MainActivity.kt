@@ -233,6 +233,9 @@ class MainActivity : AppCompatActivity() {
         appUpdateManager = AppUpdateManagerFactory.create(this)
         checkForAppUpdate()
         applyReaderTheme()
+
+        // Pre-load video links in background to warm the cache
+        bookViewModel.fetchVideos(isSilent = true)
     }
 
     override fun onResume() {

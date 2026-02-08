@@ -48,6 +48,9 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
     private val _libraryBooks = MutableLiveData<List<LibraryBook>>()
     val libraryBooks: LiveData<List<LibraryBook>> = _libraryBooks
 
+    private val _videos = MutableLiveData<Result<List<Video>>>()
+    val videos: LiveData<Result<List<Video>>> = _videos
+
     private var cachedContributors: List<Contributor>? = null
 
     fun fetchLibraryMetadata() {
@@ -163,6 +166,15 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
             // The repository handles caching, so this will be fast if data exists.
             if (!isSilent) {
                 _contributors.postValue(result)
+            }
+        }
+    }
+
+    fun fetchVideos(forceRefresh: Boolean = false, isSilent: Boolean = false) {
+        viewModelScope.launch {
+            val result = repository.getVideos(forceRefresh)
+            if (!isSilent) {
+                _videos.postValue(result)
             }
         }
     }
