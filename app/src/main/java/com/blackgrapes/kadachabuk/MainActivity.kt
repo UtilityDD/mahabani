@@ -222,6 +222,11 @@ class MainActivity : AppCompatActivity() {
                         theme.resolveAttribute(com.google.android.material.R.attr.colorOnPrimary, typedValue, true)
                         val titleColor = typedValue.data
                         toolbarTitle.setTextColor(titleColor)
+                        
+                        // Make title clickable to show about dialog
+                        toolbarTitle.setOnClickListener {
+                            showAboutDialog()
+                        }
                     }
                 }
         }

@@ -40,13 +40,17 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="start|center_vertical"
                 android:layout_marginStart="12dp"
+                android:layout_marginEnd="16dp"
+                android:maxWidth="200dp"
                 app:fontFamily="@font/galada"
                 android:textSize="22sp"
                 android:textColor="?attr/colorOnPrimary"
                 android:includeFontPadding="false"
                 android:translationY="5dp"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:visibility="gone"
-                tools:text="Book Name"
+                tools:text="Very Long Book Name That Should Truncate"
                 tools:visibility="visible" />
 
         </com.google.android.material.appbar.MaterialToolbar>
