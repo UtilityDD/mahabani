@@ -1203,6 +1203,13 @@ class MainActivity : AppCompatActivity() {
         theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurfaceVariant, typedValue, true)
         titleTextView.setTextColor(typedValue.data)
 
+        // Set dynamic book title
+        val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        val currentLangCode = sharedPreferences.getString("selected_language_code", "en") ?: "en"
+        val currentBook = bookViewModel.libraryBooks.value?.find { it.bookId == currentBookId }
+        val bookName = currentBook?.getLocalizedName(currentLangCode) ?: "Kada Chabuk"
+        titleTextView.text = "About $bookName"
+
 
         // Show the "Don't show again" checkbox only on the initial startup dialog.
         // The hasShownInitialAboutDialog flag from the ViewModel is the reliable source of truth here.
