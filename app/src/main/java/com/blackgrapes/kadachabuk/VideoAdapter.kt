@@ -8,6 +8,7 @@ import android.view.View
 import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.widget.ImageButton
@@ -33,7 +34,7 @@ class VideoAdapter(
         val webView: WebView = view.findViewById(R.id.video_webview)
         val favoriteButton: ImageButton = view.findViewById(R.id.favoriteButton)
         val progressBar: ProgressBar = view.findViewById(R.id.video_progress_bar)
-        val playButton: ImageButton = view.findViewById(R.id.play_button)
+        val playButton: FrameLayout = view.findViewById(R.id.play_button)
         val collapseButton: ImageButton = view.findViewById(R.id.collapse_button)
 
         fun releasePlayer() {
@@ -119,9 +120,14 @@ class VideoAdapter(
             val htmlContent = when (video.source) {
                 VideoSource.YOUTUBE -> {
                     val videoId = video.getYouTubeVideoId()
+                    val packageName = holder.itemView.context.packageName
+                    val origin = "https://$packageName"
                     """
                     <html><body style="margin:0;padding:0;background-color:black;">
-                    <iframe width="100%" height="100%" src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1" frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>
+                    <iframe width="100%" height="100%" 
+                            src="https://www.youtube-nocookie.com/embed/$videoId?autoplay=1&playsinline=1&enablejsapi=1&origin=$origin&widget_referrer=$origin" 
+                            frameborder="0" allow="autoplay; fullscreen" allowfullscreen
+                            referrerpolicy="strict-origin-when-cross-origin"></iframe>
                     </body></html>
                     """.trimIndent()
                 }
@@ -143,6 +149,8 @@ class VideoAdapter(
             }
 
             holder.webView.settings.javaScriptEnabled = true
+            holder.webView.settings.domStorageEnabled = true
+            holder.webView.settings.mediaPlaybackRequiresUserGesture = false
             holder.webView.webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                     if (newProgress < 100) {
@@ -152,7 +160,8 @@ class VideoAdapter(
                     }
                 }
             }
-            holder.webView.loadData(htmlContent, "text/html", "utf-8")
+            val baseUrl = "https://${holder.itemView.context.packageName}"
+            holder.webView.loadDataWithBaseURL(baseUrl, htmlContent, "text/html", "utf-8", null)
         } else {
             // IDLE STATE
             holder.releasePlayer()

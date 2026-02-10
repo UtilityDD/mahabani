@@ -48,6 +48,8 @@ class VideoPlayerActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+        webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.webViewClient = WebViewClient() // Ensures links open within the WebView
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
@@ -87,13 +89,17 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun loadYouTubeVideo(video: Video) {
         val videoId = video.getYouTubeVideoId()
         if (videoId != null) {
-            val videoUrl = "https://www.youtube.com/embed/$videoId?autoplay=1"
+            val origin = "https://$packageName"
+            val videoUrl = "https://www.youtube-nocookie.com/embed/$videoId?autoplay=1&enablejsapi=1&origin=$origin&widget_referrer=$origin"
             val html = """
                 <html><body style="margin:0;padding:0;overflow:hidden;background-color:black;">
-                <iframe width="100%" height="100%" src="$videoUrl" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                <iframe width="100%" height="100%" src="$videoUrl" frameborder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
                 </body></html>
             """.trimIndent()
-            webView.loadData(html, "text/html", "utf-8")
+            val baseUrl = origin
+            webView.loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", null)
         }
     }
 
