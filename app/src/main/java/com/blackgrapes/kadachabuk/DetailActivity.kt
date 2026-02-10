@@ -26,6 +26,7 @@ import java.util.Locale
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
 import android.widget.ImageButton
 import android.widget.ImageView // <-- IMPORT THIS
 import android.util.TypedValue
@@ -1584,7 +1585,7 @@ class DetailActivity : AppCompatActivity() {
         return "https://raw.githubusercontent.com/UtilityDD/mahabani_audio/main/$bookId/$languageCode/$cleanSerial.wav"
     }
 
-    private suspend fun verifyUrlExists(urlString: String): Boolean {
+    private suspend fun getRemoteAudioInfo(urlString: String): Long {
         return withContext(Dispatchers.IO) {
             try {
                 val url = URL(urlString)
@@ -1593,11 +1594,16 @@ class DetailActivity : AppCompatActivity() {
                 connection.connectTimeout = 5000
                 connection.readTimeout = 5000
                 val responseCode = connection.responseCode
+                val length = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    connection.contentLengthLong
+                } else {
+                    connection.contentLength.toLong()
+                }
                 connection.disconnect()
-                responseCode == HttpURLConnection.HTTP_OK
+                if (responseCode == HttpURLConnection.HTTP_OK) length else -1L
             } catch (e: Exception) {
-                Log.e("AudioVerify", "Error verifying URL: $urlString", e)
-                false
+                Log.e("AudioVerify", "Error fetching info for URL: $urlString", e)
+                -1L
             }
         }
     }
@@ -1616,32 +1622,52 @@ class DetailActivity : AppCompatActivity() {
         // Use auto-guessed URL if audioLink is null/blank
         val urlToVerify = if (!audioLink.isNullOrBlank()) audioLink!! else getAutoGuessedAudioUrl()
         
-        // 1. Check local storage first
+        // 1. Initial local check
         val localFile = getLocalAudioFile()
         if (localFile.exists()) {
             isAudioAvailable = true
             isAudioDownloaded = true
-            runOnUiThread {
-                buttonTts.alpha = 1.0f
-                buttonDownload.visibility = View.VISIBLE
-                buttonDownload.setImageResource(R.drawable.ic_checkmark)
-                Log.d("AudioVerify", "Local audio found: ${localFile.absolutePath}")
-            }
-            return
-        }
+            buttonTts.alpha = 1.0f
+            buttonDownload.visibility = View.VISIBLE
+            buttonDownload.setImageResource(R.drawable.ic_checkmark)
+            
+            // Early prepare using local file
+            if (exoPlayer == null) initializePlayer()
+            val mediaItem = MediaItem.fromUri(Uri.fromFile(localFile).toString())
+            exoPlayer?.setMediaItem(mediaItem)
+            exoPlayer?.prepare()
+            Log.d("AudioPlayer", "Player pre-prepared with LOCAL file: ${localFile.name}")
 
-        // 2. If not local, check remote reachability
-        CoroutineScope(Dispatchers.Main).launch {
-            val exists = verifyUrlExists(urlToVerify)
-            isAudioAvailable = exists
-            if (exists) {
-                buttonTts.alpha = 1.0f
-                buttonDownload.visibility = View.VISIBLE
-                Log.d("AudioVerify", "Remote audio available: $urlToVerify")
-            } else {
-                buttonTts.alpha = 0.4f
-                buttonDownload.visibility = View.GONE
-                Log.d("AudioVerify", "Audio NOT available: $urlToVerify")
+            // Still check for updates in background
+            CoroutineScope(Dispatchers.Main).launch {
+                val remoteLength = getRemoteAudioInfo(urlToVerify)
+                if (remoteLength > 0 && remoteLength != localFile.length()) {
+                    Log.i("AudioVerify", "Update available! Local: ${localFile.length()}, Remote: $remoteLength")
+                    buttonDownload.setImageResource(R.drawable.ic_refresh)
+                    btnCompactDownload?.setImageResource(R.drawable.ic_refresh)
+                }
+            }
+        } else {
+            // 2. If not local, check remote reachability
+            CoroutineScope(Dispatchers.Main).launch {
+                val remoteLength = getRemoteAudioInfo(urlToVerify)
+                val exists = remoteLength != -1L
+                isAudioAvailable = exists
+                if (exists) {
+                    buttonTts.alpha = 1.0f
+                    buttonDownload.visibility = View.VISIBLE
+                    Log.d("AudioVerify", "Remote audio available ($remoteLength bytes): $urlToVerify")
+                    
+                    // PRE-PREPARE: Prepare the player in advance
+                    if (exoPlayer == null) initializePlayer()
+                    val mediaItem = MediaItem.fromUri(urlToVerify)
+                    exoPlayer?.setMediaItem(mediaItem)
+                    exoPlayer?.prepare() 
+                } else {
+                    buttonTts.alpha = 0.4f
+                    buttonDownload.visibility = View.GONE
+                    Log.d("AudioVerify", "Audio NOT available: $urlToVerify")
+                }
             }
         }
     }
@@ -1650,8 +1676,17 @@ class DetailActivity : AppCompatActivity() {
         val directory = File(filesDir, "audio_downloads")
         if (!directory.exists()) directory.mkdirs()
         
+        // Use the actual extension from the URL if possible, fallback to .wav
+        val urlToCheck = if (!audioLink.isNullOrBlank()) audioLink!! else getAutoGuessedAudioUrl()
+        val extension = try {
+            val path = URL(urlToCheck).path
+            if (path.contains(".")) path.substringAfterLast(".") else "wav"
+        } catch (e: Exception) {
+            "wav"
+        }
+        
         // Use a unique name based on bookId, languageCode, and serial
-        val fileName = "${bookId}_${languageCode}_${chapterSerial}.wav"
+        val fileName = "${bookId}_${languageCode}_${chapterSerial}.$extension"
         return File(directory, fileName)
     }
 
@@ -1673,12 +1708,34 @@ class DetailActivity : AppCompatActivity() {
                 connection.connect()
 
                 if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                    val contentLength = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        connection.contentLengthLong
+                    } else {
+                        connection.contentLength.toLong()
+                    }
+
                     connection.inputStream.use { input ->
                         FileOutputStream(localFile).use { output ->
-                            input.copyTo(output)
+                            val buffer = ByteArray(8 * 1024)
+                            var bytesRead: Int
+                            var totalBytesRead = 0L
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                output.write(buffer, 0, bytesRead)
+                                totalBytesRead += bytesRead
+                                // Optional: Log progress for very large files
+                                if (totalBytesRead % (1024 * 1024) == 0L) {
+                                    Log.d("AudioDownload", "Downloaded ${totalBytesRead / 1024} KB...")
+                                }
+                            }
                         }
                     }
                     
+                    // Verification
+                    if (contentLength > 0 && localFile.length() < contentLength) {
+                        localFile.delete()
+                        throw Exception("Download incomplete: ${localFile.length()} / $contentLength bytes")
+                    }
+
                     withContext(Dispatchers.Main) {
                         isAudioDownloaded = true
                         buttonDownload.setImageResource(R.drawable.ic_checkmark)
@@ -1689,7 +1746,7 @@ class DetailActivity : AppCompatActivity() {
                         btnCompactDownload?.alpha = 1.0f
                         
                         Toast.makeText(this@DetailActivity, "Download complete", Toast.LENGTH_SHORT).show()
-                        Log.d("AudioDownload", "Successfully downloaded to: ${localFile.absolutePath}")
+                        Log.d("AudioDownload", "Successfully downloaded ($contentLength bytes) to: ${localFile.absolutePath}")
                     }
                 } else {
                     throw Exception("Server returned code ${connection.responseCode}")
@@ -1709,7 +1766,20 @@ class DetailActivity : AppCompatActivity() {
 
     private fun initializePlayer() {
         if (exoPlayer != null) return
-        exoPlayer = ExoPlayer.Builder(this).build()
+        
+        // Tune LoadControl for faster startup of large files
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                2500, // Min buffer: 2.5s (prevents frequent stalls)
+                30000, // Max buffer: 30s
+                1000, // Buffer for playback: 1s (fast start!)
+                2000  // Buffer after rebuffer: 2s
+            )
+            .build()
+
+        exoPlayer = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
+            .build()
         exoPlayer?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 isHumanAudioPlaying = isPlaying
@@ -1737,12 +1807,27 @@ class DetailActivity : AppCompatActivity() {
             }
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                Log.e("AudioPlayer", "Error playing human audio: ${error.message}")
-                Toast.makeText(this@DetailActivity, "Audio unavailable for this chapter.", Toast.LENGTH_SHORT).show()
-                audioLink = null 
+                Log.e("AudioPlayer", "Error playing audio: ${error.errorCodeName} / ${error.message}", error)
+                
+                // If local file fails, delete it as it might be corrupted
+                if (isAudioDownloaded) {
+                    val localFile = getLocalAudioFile()
+                    if (localFile.exists()) {
+                        Log.w("AudioPlayer", "Local file playback failed. Deleting corrupted file: ${localFile.name}")
+                        localFile.delete()
+                        isAudioDownloaded = false
+                        runOnUiThread {
+                            buttonDownload.setImageResource(R.drawable.ic_download)
+                            btnCompactDownload?.setImageResource(R.drawable.ic_download)
+                        }
+                    }
+                }
+
+                Toast.makeText(this@DetailActivity, "Audio playback error. Please try again or re-download.", Toast.LENGTH_SHORT).show()
                 isHumanAudioPlaying = false
                 breathingOrb.setTalking(false)
                 buttonTts.setImageResource(R.drawable.ic_speaker)
+                btnCompactPlayPause?.setImageResource(R.drawable.ic_play_arrow)
             }
         })
     }
