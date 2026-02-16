@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginStart="12dp"
-    android:layout_marginTop="8dp"
-    android:layout_marginEnd="12dp"
-    android:layout_marginBottom="8dp"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="0dp"
-    app:strokeColor="?attr/colorOutlineVariant"
-    app:strokeWidth="1dp">
+    android:layout_marginStart="16dp"
+    android:layout_marginTop="10dp"
+    android:layout_marginEnd="16dp"
+    android:layout_marginBottom="10dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="2dp"
+    app:strokeWidth="0dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
@@ -41,44 +40,48 @@
                 android:layout_height="match_parent"
                 android:visibility="gone" />
 
-            <!-- Modern Play Button with Circular Background -->
+            <!-- Scrim Overlay for Title Readability -->
+            <View
+                android:id="@+id/titleScrim"
+                android:layout_width="match_parent"
+                android:layout_height="80dp"
+                android:layout_gravity="bottom"
+                android:background="@drawable/scrim_gradient" />
+
+            <!-- Minimal Play Button -->
             <FrameLayout
                 android:id="@+id/play_button"
-                android:layout_width="72dp"
-                android:layout_height="72dp"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
                 android:layout_gravity="center"
-                android:background="@android:color/transparent"
                 android:clickable="true"
                 android:focusable="true">
 
                 <View
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
                     android:layout_gravity="center"
                     android:background="@drawable/rounded_corner_background"
-                    android:backgroundTint="#CC000000"
-                    android:elevation="4dp" />
+                    android:backgroundTint="#AA000000" />
 
                 <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
                     android:layout_gravity="center"
-                    android:contentDescription="Play Video"
                     android:src="@drawable/ic_play_arrow"
                     app:tint="@android:color/white" />
             </FrameLayout>
 
             <ImageButton
                 android:id="@+id/collapse_button"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_gravity="top|end"
                 android:layout_margin="12dp"
                 android:src="@drawable/ic_collapse"
                 android:background="@drawable/rounded_corner_background"
                 android:backgroundTint="#CC000000"
                 android:visibility="gone"
-                android:contentDescription="Collapse Video"
                 app:tint="@android:color/white" />
 
             <ProgressBar
@@ -87,40 +90,62 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
+                android:visibility="gone" />
+
+            <!-- Title Overlay (Minimal Look) -->
+            <TextView
+                android:id="@+id/videoRemark"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:paddingStart="16dp"
+                android:paddingEnd="64dp"
+                android:paddingBottom="16dp"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="@android:color/white"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:shadowColor="#80000000"
+                android:shadowDx="1"
+                android:shadowDy="1"
+                android:shadowRadius="2"
+                tools:text="Video Title Overlaid on Thumbnail" />
+
+            <!-- Video Duration Badge -->
+            <TextView
+                android:id="@+id/videoDuration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="12dp"
+                android:background="@drawable/rounded_corner_background"
+                android:backgroundTint="#CC000000"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:textColor="@android:color/white"
+                android:textSize="11sp"
+                android:textStyle="bold"
                 android:visibility="gone"
+                tools:text="12:45"
                 tools:visibility="visible" />
+
+            <!-- Favorite Overlay -->
+            <ImageButton
+                android:id="@+id/favoriteButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Mark as favorite"
+                android:padding="12dp"
+                android:src="@drawable/ic_favorite_border"
+                app:tint="@android:color/white" />
 
         </FrameLayout>
 
-        <TextView
-            android:id="@+id/videoRemark"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginTop="12dp"
-            android:layout_marginEnd="8dp"
-            android:layout_marginBottom="12dp"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/favoriteButton"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/video_container"
-            tools:text="Video Remark or Title" />
-
-        <ImageButton
-            android:id="@+id/favoriteButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Mark as favorite"
-            android:src="@drawable/ic_favorite_border"
-            app:layout_constraintBottom_toBottomOf="@+id/videoRemark"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@+id/videoRemark"
-            app:tint="?attr/colorError" />
-
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>

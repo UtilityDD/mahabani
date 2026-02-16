@@ -11,7 +11,8 @@ data class Video(
     val sl: String,
     private val originalLink: String,
     val remark: String,
-    val category: String
+    val category: String,
+    val length: String = "" // Added for time-length
 ) : Parcelable {
 
     // This computed property ensures that we always use a compatible link format.

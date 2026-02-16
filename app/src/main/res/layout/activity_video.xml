@@ -27,13 +27,15 @@
         android:id="@+id/tab_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/colorSurfaceContainer"
-        android:elevation="0dp"
+        android:background="?attr/colorSurface"
+        app:tabBackground="?attr/colorSurface"
         app:tabIndicatorColor="?attr/colorPrimary"
-        app:tabIndicatorHeight="3dp"
+        app:tabIndicatorHeight="2dp"
         app:tabMode="scrollable"
         app:tabSelectedTextColor="?attr/colorPrimary"
-        app:tabTextColor="?attr/colorOnSurfaceVariant" />
+        app:tabTextColor="?attr/colorOnSurfaceVariant"
+        app:tabRippleColor="@android:color/transparent"
+        app:tabTextAppearance="@android:style/TextAppearance.Material.Caption" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"

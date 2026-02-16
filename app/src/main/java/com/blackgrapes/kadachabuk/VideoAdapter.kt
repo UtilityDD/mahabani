@@ -36,6 +36,9 @@ class VideoAdapter(
         val progressBar: ProgressBar = view.findViewById(R.id.video_progress_bar)
         val playButton: FrameLayout = view.findViewById(R.id.play_button)
         val collapseButton: ImageButton = view.findViewById(R.id.collapse_button)
+        val durationBadge: TextView = view.findViewById(R.id.videoDuration)
+
+        val titleScrim: View = view.findViewById(R.id.titleScrim)
 
         fun releasePlayer() {
             webView.stopLoading()
@@ -74,6 +77,13 @@ class VideoAdapter(
             else -> {
                 holder.thumbnail.setImageResource(R.drawable.rounded_corner_background)
             }
+        }
+
+        if (video.length.isNotEmpty()) {
+            holder.durationBadge.text = video.length
+            holder.durationBadge.visibility = if (position == currentlyPlayingPosition) View.GONE else View.VISIBLE
+        } else {
+            holder.durationBadge.visibility = View.GONE
         }
 
         val isFavorite = favoritePrefs.getBoolean(video.getUniqueId(), false)
@@ -116,6 +126,10 @@ class VideoAdapter(
             holder.playButton.visibility = View.GONE
             holder.webView.visibility = View.VISIBLE
             holder.collapseButton.visibility = View.VISIBLE
+            holder.remark.visibility = View.GONE
+            holder.favoriteButton.visibility = View.GONE
+            holder.titleScrim.visibility = View.GONE
+            holder.durationBadge.visibility = View.GONE
 
             val htmlContent = when (video.source) {
                 VideoSource.YOUTUBE -> {
@@ -170,6 +184,12 @@ class VideoAdapter(
             holder.webView.visibility = View.GONE
             holder.progressBar.visibility = View.GONE
             holder.collapseButton.visibility = View.GONE
+            holder.remark.visibility = View.VISIBLE
+            holder.favoriteButton.visibility = View.VISIBLE
+            holder.titleScrim.visibility = View.VISIBLE
+            if (video.length.isNotEmpty()) {
+                holder.durationBadge.visibility = View.VISIBLE
+            }
         }
 
         holder.playButton.setOnClickListener {

@@ -4,10 +4,20 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.Menu
+import androidx.appcompat.widget.SearchView
 import android.util.TypedValue
 import android.view.View
 import android.view.MenuItem
+import android.view.ViewGroup
+import android.view.animation.Animation
+import android.view.animation.AnimationUtils
 import android.widget.Button
+import android.widget.ImageView
+import android.graphics.PorterDuff
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import androidx.core.graphics.ColorUtils
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -38,8 +48,12 @@ class VideoActivity : AppCompatActivity(), VideoPlaybackListener, OnFavoriteChan
     private lateinit var viewPager: ViewPager2
 
     private var originalTitle: String = "Video Links"
-    private var currentViewPagerPosition = 0
+    private var currentViewPagerPosition = 2
     private var allVideos: List<Video> = emptyList()
+    private var refreshItem: MenuItem? = null
+    private var currentSearchQuery: String = ""
+    private var categories = listOf("Favorites", "Speech", "Mahanam", "Vedic Song")
+    private var categoryFragments: List<VideoListFragment> = emptyList()
 
     private val bookViewModel: BookViewModel by viewModels()
 
@@ -94,6 +108,7 @@ class VideoActivity : AppCompatActivity(), VideoPlaybackListener, OnFavoriteChan
             result.onSuccess { videoList ->
                 allVideos = videoList
                 
+                stopRefreshAnimation()
                 progressBar.visibility = View.GONE
                 if (videoList.isEmpty()) {
                     errorGroup.visibility = View.VISIBLE
@@ -113,33 +128,23 @@ class VideoActivity : AppCompatActivity(), VideoPlaybackListener, OnFavoriteChan
                 val videoMap = videoList.groupBy { it.category }.toMutableMap()
                 videoMap["Favorites"] = favoriteVideos
 
-                val categories = listOf("Favorites", "Speech", "Mahanam", "Vedic Song")
+                // Use the class-level 'categories' property
                 val fragments = categories.mapIndexed { index, category ->
                     VideoListFragment.newInstance(videoMap[category] ?: emptyList(), index == 0)
                 }
 
                 viewPager.adapter = VideoPagerAdapter(this@VideoActivity, fragments)
+                categoryFragments = fragments
 
                 TabLayoutMediator(tabLayout, viewPager) { tab, position ->
-                    val category = categories[position]
-                    val count = videoMap[category]?.size ?: 0
-
-                    if (position == 0) { // This is the "Favorites" tab
-                        tab.setIcon(R.drawable.ic_favorite_filled)
-                        tab.contentDescription = "Favorites ($count)"
-
-                        val badge = tab.orCreateBadge
-                        badge.number = count
-                        badge.isVisible = count > 0
-                    } else {
-                        tab.text = "$category ($count)"
-                    }
+                    updateTabAppearance(tab, position)
                 }.attach()
 
                 viewPager.setCurrentItem(currentViewPagerPosition, false)
                 originalTitle = "Video Links (${videoList.size})"
                 toolbar.title = originalTitle
             }.onFailure { error ->
+                stopRefreshAnimation()
                 progressBar.visibility = View.GONE
                 errorGroup.visibility = View.VISIBLE
                 errorMessageTextView.text = "Error: ${error.message ?: "Failed to load videos"}"
@@ -151,6 +156,25 @@ class VideoActivity : AppCompatActivity(), VideoPlaybackListener, OnFavoriteChan
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.video_menu, menu)
+        refreshItem = menu?.findItem(R.id.action_refresh_videos)
+        
+        val searchItem = menu?.findItem(R.id.action_search)
+        val searchView = searchItem?.actionView as? SearchView
+        searchView?.apply {
+            queryHint = "Search video title..."
+            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?): Boolean {
+                    return false
+                }
+
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    currentSearchQuery = newText ?: ""
+                    filterAndDisplayVideos()
+                    return true
+                }
+            })
+            styleSearchView(this)
+        }
         return true
     }
 
@@ -161,6 +185,7 @@ class VideoActivity : AppCompatActivity(), VideoPlaybackListener, OnFavoriteChan
                 return true
             }
             R.id.action_refresh_videos -> {
+                startRefreshAnimation()
                 bookViewModel.fetchVideos(forceRefresh = true)
                 return true
             }
@@ -198,5 +223,100 @@ class VideoActivity : AppCompatActivity(), VideoPlaybackListener, OnFavoriteChan
             badge.number = count
             badge.isVisible = count > 0
         }
+    }
+
+    private fun filterAndDisplayVideos() {
+        val favoritePrefs = getSharedPreferences("VideoFavorites", Context.MODE_PRIVATE)
+        val videoMap = allVideos.filter {
+            it.remark.contains(currentSearchQuery, ignoreCase = true)
+        }.groupBy { it.category }.toMutableMap()
+        
+        val favoriteVideos = allVideos.filter { 
+            favoritePrefs.getBoolean(it.getUniqueId(), false) && 
+            it.remark.contains(currentSearchQuery, ignoreCase = true)
+        }
+        videoMap["Favorites"] = favoriteVideos
+
+        categoryFragments.forEachIndexed { index, fragment ->
+            val category = categories[index]
+            fragment.updateVideos(videoMap[category] ?: emptyList())
+            
+            val tab = tabLayout.getTabAt(index)
+            if (tab != null) {
+                updateTabAppearance(tab, index, videoMap[category]?.size ?: 0)
+            }
+        }
+    }
+
+    private fun updateTabAppearance(tab: TabLayout.Tab, position: Int, overrideCount: Int? = null) {
+        val category = categories[position]
+        val favoritePrefs = getSharedPreferences("VideoFavorites", Context.MODE_PRIVATE)
+        
+        val count = overrideCount ?: if (position == 0) {
+            allVideos.filter { favoritePrefs.getBoolean(it.getUniqueId(), false) && it.remark.contains(currentSearchQuery, ignoreCase = true) }.size
+        } else {
+            allVideos.filter { it.category == category && it.remark.contains(currentSearchQuery, ignoreCase = true) }.size
+        }
+
+        if (position == 0) {
+            tab.setIcon(R.drawable.ic_favorite_filled)
+            tab.contentDescription = "Favorites ($count)"
+            val badge = tab.orCreateBadge
+            badge.number = count
+            badge.isVisible = count > 0
+        } else {
+            tab.text = "$category ($count)"
+        }
+    }
+
+    private fun startRefreshAnimation() {
+        refreshItem?.let { item ->
+            val iv = ImageView(this).apply {
+                setImageResource(R.drawable.ic_refresh)
+                // Set the size to match the standard toolbar menu item size (usually 48dp)
+                val size = (48 * resources.displayMetrics.density).toInt()
+                layoutParams = ViewGroup.LayoutParams(size, size)
+                scaleType = ImageView.ScaleType.CENTER
+                val typedValue = TypedValue()
+                theme.resolveAttribute(com.google.android.material.R.attr.colorOnPrimary, typedValue, true)
+                setColorFilter(typedValue.data)
+            }
+            val rotation = AnimationUtils.loadAnimation(this, R.anim.rotate_refresh)
+            iv.startAnimation(rotation)
+            item.actionView = iv
+        }
+    }
+
+    private fun styleSearchView(searchView: SearchView) {
+        val typedValue = TypedValue()
+        theme.resolveAttribute(com.google.android.material.R.attr.colorOnPrimary, typedValue, true)
+        val iconAndTextColor = typedValue.data
+
+        val hintColor = ColorUtils.setAlphaComponent(iconAndTextColor, 180)
+
+        val searchIcon = searchView.findViewById<ImageView>(androidx.appcompat.R.id.search_mag_icon)
+        searchIcon.setColorFilter(iconAndTextColor, PorterDuff.Mode.SRC_IN)
+
+        val searchText = searchView.findViewById<TextView>(androidx.appcompat.R.id.search_src_text)
+        searchText.setTextColor(iconAndTextColor)
+        searchText.setHintTextColor(hintColor)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            searchText.textCursorDrawable = ColorDrawable(iconAndTextColor)
+        }
+
+        val closeButton = searchView.findViewById<ImageView>(androidx.appcompat.R.id.search_close_btn)
+        closeButton.setColorFilter(iconAndTextColor, PorterDuff.Mode.SRC_IN)
+
+        val backButton = searchView.findViewById<ImageView>(androidx.appcompat.R.id.search_button)
+        backButton?.setColorFilter(iconAndTextColor, PorterDuff.Mode.SRC_IN)
+
+        val underline = searchView.findViewById<View>(androidx.appcompat.R.id.search_plate)
+        underline.setBackgroundColor(Color.TRANSPARENT)
+    }
+
+    private fun stopRefreshAnimation() {
+        refreshItem?.actionView?.clearAnimation()
+        refreshItem?.actionView = null
     }
 }

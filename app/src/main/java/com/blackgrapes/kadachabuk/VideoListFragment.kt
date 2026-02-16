@@ -73,9 +73,10 @@ class VideoListFragment : Fragment() {
 
     fun updateVideos(newVideos: List<Video>) {
         this.videos = newVideos
-        updateEmptyViewVisibility()
-        // Make sure the adapter is not null before trying to update it
-        (recyclerView.adapter as? VideoAdapter)?.updateVideos(newVideos)
+        if (view != null && this::recyclerView.isInitialized) {
+            updateEmptyViewVisibility()
+            (recyclerView.adapter as? VideoAdapter)?.updateVideos(newVideos)
+        }
     }
 
     companion object {

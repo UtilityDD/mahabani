@@ -788,15 +788,21 @@ class BookRepository(private val context: Context) {
         val videos = mutableListOf<Video>()
         try {
             csvReader { skipEmptyLine = true }.readAllWithHeader(csvData).forEach { row ->
-                // Columns: sl, link, remark, category
-                val sl = row["sl"]?.trim() ?: ""
-                val rawLink = row["link"]?.trim() ?: ""
-                val remark = row["remark"]?.trim() ?: ""
-                val category = row["category"]?.trim() ?: ""
+                // Case-insensitive key lookup for robustness
+                fun getVal(vararg keys: String): String {
+                    val key = row.keys.find { k -> keys.any { it.equals(k.trim(), ignoreCase = true) } }
+                    return key?.let { row[it]?.trim() } ?: ""
+                }
+
+                val sl = getVal("sl")
+                val rawLink = getVal("link", "url")
+                val remark = getVal("remark", "title")
+                val category = getVal("category")
+                val length = getVal("length", "duration")
 
                 val link = extractVideoUrl(rawLink)
                 if (link.isNotEmpty()) {
-                    videos.add(Video(sl, link, remark, category))
+                    videos.add(Video(sl, link, remark, category, length))
                 }
             }
         } catch (e: Exception) {
