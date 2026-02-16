@@ -271,11 +271,8 @@ class MainActivity : AppCompatActivity() {
         // the list is immediately updated to pin the last-read chapter at the top.
         // We only perform this logic if the original list of chapters has been loaded.
         if (originalChapters.isNotEmpty()) {
-            // Always reorder from the pristine, serially-sorted list.
-            // This ensures previously pinned items go back to their correct place.
-            val reorderedChapters = reorderChaptersWithLastRead(pristineOriginalChapters)
-            // Update the currently displayed list.
-            originalChapters = reorderedChapters
+            // No longer reordering - keep original pristine order
+            originalChapters = pristineOriginalChapters
 
             val searchItem = optionsMenu?.findItem(R.id.action_search)
             val searchView = searchItem?.actionView as? SearchView
@@ -284,12 +281,27 @@ class MainActivity : AppCompatActivity() {
             // Only update the visible list if the user is not in the middle of a search.
             if (!isSearching) {
                 if (isShowingBookmarks) {
-                    // If the user was viewing bookmarks, re-apply the filter.
                     filterBookmarkedChapters()
                 } else {
-                    // Otherwise, just update the main list.
                     chapterAdapter.updateChapters(originalChapters)
+                    // Auto-scroll to last read position after small delay
+                    scrollToLastRead()
                 }
+            }
+        }
+    }
+
+    private fun scrollToLastRead() {
+        val prefs = getSharedPreferences(LAST_READ_PREFS, Context.MODE_PRIVATE)
+        val lastReadSerial = prefs.getString("${KEY_LAST_READ_SERIAL}_$currentBookId", null)
+        val lastReadLang = prefs.getString("${KEY_LAST_READ_LANG}_$currentBookId", null)
+        
+        if (lastReadSerial != null && lastReadLang != null) {
+            val index = originalChapters.indexOfFirst { it.serial == lastReadSerial && it.languageCode == lastReadLang }
+            if (index != -1) {
+                recyclerViewChapters.postDelayed({
+                    recyclerViewChapters.smoothScrollToPosition(index)
+                }, 400)
             }
         }
     }
@@ -990,25 +1002,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun reorderChaptersWithLastRead(chapters: List<Chapter>): List<Chapter> {
-        val prefs = getSharedPreferences(LAST_READ_PREFS, Context.MODE_PRIVATE)
-        val lastReadSerial = prefs.getString("${KEY_LAST_READ_SERIAL}_$currentBookId", null)
-        val lastReadLang = prefs.getString("${KEY_LAST_READ_LANG}_$currentBookId", null)
-
-        if (lastReadSerial == null || lastReadLang == null) {
-            return chapters // No last read chapter, return original order
-        }
-
-        val lastReadChapter = chapters.find { it.serial == lastReadSerial && it.languageCode == lastReadLang }
-
-        return if (lastReadChapter != null) {
-            // Create a new list with the last read chapter at the top
-            val mutableChapters = chapters.toMutableList()
-            mutableChapters.remove(lastReadChapter)
-            mutableChapters.add(0, lastReadChapter)
-            mutableChapters.toList()
-        } else {
-            chapters // Last read chapter not in the current list, return original order
-        }
+        // We no longer reorder the list to keep the last read at the top.
+        // We return the original list to maintain the natural serial order.
+        return chapters
     }
 
     private fun observeViewModel() {
@@ -1038,16 +1034,18 @@ class MainActivity : AppCompatActivity() {
 
                     }
 
-                    val reorderedChapters = reorderChaptersWithLastRead(it)
                     val prefs = getSharedPreferences(LAST_READ_PREFS, Context.MODE_PRIVATE)
                     val lastReadSerial = prefs.getString("${KEY_LAST_READ_SERIAL}_$currentBookId", null)
 
-                    chapterAdapter.updateChapters(reorderedChapters, lastReadSerial)
+                    chapterAdapter.updateChapters(it, lastReadSerial)
                     hideNoResultsView()
-                    // Store both the pristine and the reordered list
-                    pristineOriginalChapters = it // This is the clean, serially sorted list.
-                    originalChapters = reorderedChapters // This is the list for display.
+                    // Store both lists as the pristine original (unmodified) list
+                    pristineOriginalChapters = it 
+                    originalChapters = it 
                     recyclerViewChapters.visibility = View.VISIBLE
+                    
+                    // Auto-scroll to last read position after initial load
+                    scrollToLastRead()
                 } else { // This block runs when the observed chapter list is empty.
                     // Don't hide the RecyclerView if there are no chapters, just show an empty state.
                     // This prevents the UI from "jumping" if the user switches to a language with no content.

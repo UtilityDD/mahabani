@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.RecyclerView
 import java.util.concurrent.TimeUnit
 import com.google.android.material.card.MaterialCardView
@@ -121,17 +122,24 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
             // Visually distinguish the last read chapter
             lastReadTextView.visibility = if (isLastRead) View.VISIBLE else View.GONE
             if (isLastRead) {
-                // Example: Change stroke color and width
-                cardView.strokeWidth = 4 // Set a noticeable stroke width
-                // Use the theme's primary color for the stroke.
-                // R.color.design_default_color_primary is a private resource.
+                // Apply a gentle highlight (clean 1dp border + very subtle tint)
+                val strokeWidthPx = (1 * itemView.context.resources.displayMetrics.density).toInt()
+                cardView.strokeWidth = strokeWidthPx
+                
                 val typedValue = android.util.TypedValue()
-                cardView.context.theme.resolveAttribute(android.R.attr.colorPrimary, typedValue, true)
-                cardView.strokeColor = typedValue.data
-
+                itemView.context.theme.resolveAttribute(android.R.attr.colorPrimary, typedValue, true)
+                val primaryColor = typedValue.data
+                cardView.strokeColor = primaryColor
+                
+                // Very subtle primary tint
+                cardView.setCardBackgroundColor(ColorUtils.setAlphaComponent(primaryColor, 20))
             } else {
-                // Reset to default for other items
+                // Reset to default
                 cardView.strokeWidth = 0
+                val typedValue = android.util.TypedValue()
+                // Use colorSurfaceContainer to match item_chapter_card.xml default
+                itemView.context.theme.resolveAttribute(com.google.android.material.R.attr.colorSurfaceContainer, typedValue, true)
+                cardView.setCardBackgroundColor(typedValue.data)
             }
         }
     }
