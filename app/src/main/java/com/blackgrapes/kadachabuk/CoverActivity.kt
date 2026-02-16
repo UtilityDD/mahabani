@@ -118,7 +118,34 @@ class CoverActivity : AppCompatActivity() {
         }
         
         setupSearch()
+        setupSocialIcons()
         handleWindowInsets()
+    }
+
+    private fun setupSocialIcons() {
+        findViewById<View>(R.id.fab_video).setOnClickListener {
+            startActivity(Intent(this, VideoActivity::class.java))
+        }
+
+        findViewById<View>(R.id.fab_facebook).setOnClickListener {
+            val url = "https://www.facebook.com/thakurbalakbrahmachari"
+            openUrl(url)
+        }
+
+        findViewById<View>(R.id.fab_whatsapp).setOnClickListener {
+            // Placeholder/Generic WhatsApp link - opens WhatsApp with a pre-filled message
+            val url = "https://wa.me/?text=Joy%20Ram%20Narayan%20Ram"
+            openUrl(url)
+        }
+    }
+
+    private fun openUrl(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not open link", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun observeViewModel() {
@@ -148,9 +175,22 @@ class CoverActivity : AppCompatActivity() {
         }
         
         val shelfContainer = findViewById<View>(R.id.shelf_books_container)
+        val socialBar = findViewById<View>(R.id.social_floating_bar)
         ViewCompat.setOnApplyWindowInsetsListener(shelfContainer) { view, insets ->
             val systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             view.setPadding(view.paddingLeft, dpToPx(8f), view.paddingRight, systemBars.bottom + dpToPx(100f))
+            
+            // Adjust social bar bottom margin to avoid navigation bar
+            val socialParams = socialBar.layoutParams as android.view.ViewGroup.MarginLayoutParams
+            socialParams.bottomMargin = systemBars.bottom + dpToPx(24f)
+            socialBar.layoutParams = socialParams
+
+            // Adjust language FAB bottom margin too for consistency
+            val fabLanguage = findViewById<View>(R.id.fab_language)
+            val fabParams = fabLanguage.layoutParams as android.view.ViewGroup.MarginLayoutParams
+            fabParams.bottomMargin = systemBars.bottom + dpToPx(24f)
+            fabLanguage.layoutParams = fabParams
+            
             insets
         }
     }
@@ -312,10 +352,6 @@ class CoverActivity : AppCompatActivity() {
             val bookView = createBookView(book, lang, progress, index)
             shelfBooksContainer.addView(bookView)
         }
-
-        // Add the unique Media & Social Spine at the end
-        val mediaSpine = createMediaSpineView(lang)
-        shelfBooksContainer.addView(mediaSpine)
     }
 
     private fun createBookView(book: LibraryBook, lang: String, progress: Int = 0, index: Int = 0): View {
@@ -521,127 +557,6 @@ class CoverActivity : AppCompatActivity() {
         return cardView
     }
 
-    private fun createMediaSpineView(lang: String): View {
-        val spineHeight = 84f
-        
-        // Container
-        val cardView = android.widget.FrameLayout(this)
-        val cardParams = android.widget.LinearLayout.LayoutParams(
-            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-            dpToPx(spineHeight)
-        )
-        cardParams.setMargins(0, dpToPx(8f), 0, dpToPx(8f))
-        cardView.layoutParams = cardParams
-        cardView.elevation = dpToPx(16f).toFloat()
-        
-        // Background View (Modern dark finish)
-        val backgroundView = android.view.View(this)
-        backgroundView.layoutParams = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        backgroundView.setBackgroundResource(R.drawable.spine_modern_media)
-        cardView.addView(backgroundView)
-
-        // Glossy Shine (Glassmorphism look)
-        val gloss = android.view.View(this)
-        gloss.layoutParams = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        val glossGradient = android.graphics.drawable.GradientDrawable(
-            android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(
-                android.graphics.Color.parseColor("#40FFFFFF"), // Top highlight
-                android.graphics.Color.parseColor("#00000000"), // Clear center
-                android.graphics.Color.parseColor("#20000000")  // Deep bottom shadow
-            )
-        )
-        gloss.background = glossGradient
-        cardView.addView(gloss)
-
-        // Accent Gold Line at the top
-        val accentLine = android.view.View(this)
-        val accentParams = android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.MATCH_PARENT, dpToPx(2f))
-        accentParams.gravity = android.view.Gravity.TOP
-        accentLine.layoutParams = accentParams
-        accentLine.setBackgroundColor(android.graphics.Color.parseColor("#FFD700")) // Gold
-        accentLine.alpha = 0.6f
-        cardView.addView(accentLine)
-
-        // Content Layout (Horizontal Split or centered)
-        val contentLayout = android.widget.LinearLayout(this)
-        contentLayout.orientation = android.widget.LinearLayout.HORIZONTAL
-        contentLayout.gravity = android.view.Gravity.CENTER
-        contentLayout.layoutParams = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        
-        // 1. Video Section
-        val videoLayout = createSpineItem(
-            iconRes = R.drawable.ic_play_arrow,
-            color = "#FFD700"
-        ) {
-            startActivity(Intent(this, VideoActivity::class.java))
-        }
-        
-        // Divider
-        val divider = android.view.View(this)
-        val divParams = android.widget.LinearLayout.LayoutParams(dpToPx(1f), dpToPx(30f))
-        divParams.setMargins(dpToPx(40f), 0, dpToPx(40f), 0)
-        divider.layoutParams = divParams
-        divider.setBackgroundColor(android.graphics.Color.parseColor("#33FFFFFF"))
-        
-        // 2. Facebook Section
-        val fbLayout = createSpineItem(
-            iconRes = R.drawable.ic_facebook,
-            color = "#FFFFFF"
-        ) {
-            val fbUrl = "https://www.facebook.com/thakurbalakbrahmachari"
-            try {
-                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(fbUrl))
-                startActivity(intent)
-            } catch (e: Exception) {
-                Toast.makeText(this, "Could not open Facebook", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        contentLayout.addView(videoLayout)
-        contentLayout.addView(divider)
-        contentLayout.addView(fbLayout)
-        cardView.addView(contentLayout)
-
-        return cardView
-    }
-
-    private fun createSpineItem(iconRes: Int, color: String, onClick: () -> Unit): View {
-        val itemLayout = android.widget.LinearLayout(this)
-        itemLayout.orientation = android.widget.LinearLayout.HORIZONTAL
-        itemLayout.gravity = android.view.Gravity.CENTER
-        itemLayout.isClickable = true
-        itemLayout.isFocusable = true
-        
-        val typedValue = android.util.TypedValue()
-        theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, typedValue, true)
-        itemLayout.setBackgroundResource(typedValue.resourceId)
-        
-        // Increased padding for better touch target
-        itemLayout.setPadding(dpToPx(16f), dpToPx(16f), dpToPx(16f), dpToPx(16f))
-        
-        val icon = ImageView(this)
-        val iconSize = dpToPx(32f) // Slightly larger icons for better visibility
-        icon.layoutParams = android.widget.LinearLayout.LayoutParams(iconSize, iconSize)
-        icon.setImageResource(iconRes)
-        
-        // App Tinting
-        icon.setColorFilter(android.graphics.Color.parseColor(color))
-        
-        itemLayout.addView(icon)
-        itemLayout.setOnClickListener { onClick() }
-        
-        return itemLayout
-    }
 
     private fun handleBookClick(imageView: ImageView, cardView: android.widget.FrameLayout, book: LibraryBook, lang: String, coverRes: Int) {
         showBookCoverOverlay(book, lang, coverRes)
