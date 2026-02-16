@@ -165,6 +165,29 @@ class VideoAdapter(
             holder.webView.settings.javaScriptEnabled = true
             holder.webView.settings.domStorageEnabled = true
             holder.webView.settings.mediaPlaybackRequiresUserGesture = false
+            
+            holder.webView.webViewClient = object : android.webkit.WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: android.webkit.WebResourceRequest?
+                ): android.webkit.WebResourceResponse? {
+                    val url = request?.url?.toString() ?: return null
+                    if (AdBlocker.isAd(url)) {
+                        return AdBlocker.createEmptyResource()
+                    }
+                    return super.shouldInterceptRequest(view, request)
+                }
+
+                override fun shouldOverrideUrlLoading(
+                    view: WebView?,
+                    request: android.webkit.WebResourceRequest?
+                ): Boolean {
+                    // Block navigation away from the video player to ad sites
+                    val url = request?.url?.toString() ?: return false
+                    return AdBlocker.isAd(url)
+                }
+            }
+
             holder.webView.webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                     if (newProgress < 100) {
