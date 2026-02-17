@@ -958,6 +958,7 @@ class DetailActivity : AppCompatActivity() {
             with(prefs.edit()) {
                 putString("${KEY_LAST_READ_SERIAL}_$bookId", chapterSerial)
                 putString("${KEY_LAST_READ_LANG}_$bookId", languageCode)
+                putLong("lastReadTimestamp_${bookId}_${chapterSerial}_$languageCode", System.currentTimeMillis())
                 apply()
             }
         }

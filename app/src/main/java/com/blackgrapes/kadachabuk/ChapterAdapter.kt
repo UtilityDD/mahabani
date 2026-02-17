@@ -26,13 +26,23 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
         val chapter = chapters[position]
         val context = holder.itemView.context
 
-        // Retrieve the last read serial from SharedPreferences for this specific book
+        // Retrieve the last read info from SharedPreferences
         val prefs = context.getSharedPreferences("LastReadPrefs", Context.MODE_PRIVATE)
         val lastReadSerial = prefs.getString("lastReadSerial_${chapter.bookId}", null)
-
+        val lastReadLang = prefs.getString("lastReadLang_${chapter.bookId}", null)
+        val isLastRead = chapter.serial == lastReadSerial && chapter.languageCode == lastReadLang
+        
         holder.serialTextView.text = chapter.serial
-        // Pass whether this is the last read chapter to the bind method
-        holder.bind(chapter, chapter.serial == lastReadSerial)
+        
+        // Fetch the last read timestamp if this is the last read chapter
+        val lastReadTimestamp = if (isLastRead) {
+            prefs.getLong("lastReadTimestamp_${chapter.bookId}_${chapter.serial}_${chapter.languageCode}", 0L)
+        } else {
+            0L
+        }
+        
+        // Pass to the bind method with timestamp
+        holder.bind(chapter, isLastRead, lastReadTimestamp)
 
         // Handle click → open DetailActivity
         holder.itemView.setOnClickListener {
@@ -63,22 +73,21 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
         private val cardView: MaterialCardView = itemView as MaterialCardView
         private val headingTextView: TextView = itemView.findViewById(R.id.textViewHeading)
         private val dateTextView: TextView = itemView.findViewById(R.id.textViewDate)
-        private val historyTextView: TextView = itemView.findViewById(R.id.textViewHistory)
+        private val historyIndicatorDot: View = itemView.findViewById(R.id.historyIndicatorDot)
         private val lastReadTextView: TextView = itemView.findViewById(R.id.textViewLastRead)
         val serialTextView: TextView = itemView.findViewById(R.id.textViewSerial)
 
-        fun bind(chapter: Chapter, isLastRead: Boolean) {
+
+        fun bind(chapter: Chapter, isLastRead: Boolean, lastReadTimestamp: Long) {
             headingTextView.text = chapter.heading
             // Remove parentheses from the date string, or show blank if missing
             val displayDate = chapter.date?.removeSurrounding("(", ")") ?: ""
             dateTextView.text = displayDate
             dateTextView.visibility = if (displayDate.isEmpty()) View.GONE else View.VISIBLE
 
-            // --- Reading History Display Logic ---
-            // Cancel any existing animations on this view before starting a new one.
-            // This is crucial for RecyclerView to prevent animations from repeating on recycled views.
-            historyTextView.animate().cancel()
-            historyTextView.visibility = View.GONE
+            // --- Reading History Display Logic (Serial Number Click) ---
+            historyIndicatorDot.visibility = View.GONE
+            serialTextView.setOnClickListener(null) // Clear previous listener
 
             val historyPrefs = itemView.context.getSharedPreferences("ReadingHistoryPrefs", Context.MODE_PRIVATE)
             val isHistoryVisible = historyPrefs.getBoolean("is_history_visible", true)
@@ -89,57 +98,83 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
                 val totalTimeMs = historyPrefs.getLong("time_$historyKeyBase", 0)
 
                 if (count > 0) {
-                    val formattedTime = TimeUtils.formatDuration(totalTimeMs)
-                    val finalHistoryText = "$count / $formattedTime"
-
-                    // Set initial text and make it visible
-                    historyTextView.alpha = 1f
-                    historyTextView.translationX = 0f
-                    historyTextView.rotationY = 0f
-                    // Set the icon from the start but make it transparent to reserve its space.
-                    val historyIcon = ContextCompat.getDrawable(itemView.context, R.drawable.ic_history)?.mutate()
-                    historyIcon?.alpha = 0 // Make icon transparent
-                    historyTextView.setCompoundDrawablesWithIntrinsicBounds(historyIcon, null, null, null)
-                    historyTextView.text = "Reading history" // Initial text
-                    historyTextView.visibility = View.VISIBLE
-
-
-                    // Animate to the actual data after a delay
-                    historyTextView.postDelayed({
-                        // Animate the initial text out (flip away)
-                        historyTextView.animate().rotationY(90f).alpha(0f).setDuration(250).withEndAction {
-                            // At the halfway point of the flip:
-                            historyTextView.text = finalHistoryText
-                            // Fade the icon in.
-                            historyTextView.compoundDrawables[0]?.alpha = 255
-                            historyTextView.rotationY = -90f
-                            historyTextView.animate().rotationY(0f).alpha(1f).setDuration(250).start()
-                        }.start()
-                    }, 800) // 0.8-second delay
+                    // Show subtle indicator dot on serial badge
+                    historyIndicatorDot.visibility = View.VISIBLE
+                    
+                    // Make serial number clickable to show reading history
+                    serialTextView.setOnClickListener {
+                        val formattedTime = TimeUtils.formatDuration(totalTimeMs)
+                        val message = "📖 Read $count time${if (count > 1) "s" else ""}\n⏱️ Total: $formattedTime"
+                        android.widget.Toast.makeText(itemView.context, message, android.widget.Toast.LENGTH_LONG).show()
+                    }
                 }
             } // --- End of History Logic ---
 
+            // Display last read with relative time
+            if (isLastRead && lastReadTimestamp > 0) {
+                val relativeTime = getRelativeTime(lastReadTimestamp)
+                lastReadTextView.text = relativeTime
+                lastReadTextView.visibility = View.VISIBLE
+            } else if (isLastRead) {
+                // Fallback if timestamp is not available
+                lastReadTextView.text = "Last read"
+                lastReadTextView.visibility = View.VISIBLE
+            } else {
+                lastReadTextView.visibility = View.GONE
+            }
+
             // Visually distinguish the last read chapter
-            lastReadTextView.visibility = if (isLastRead) View.VISIBLE else View.GONE
             if (isLastRead) {
-                // Apply a gentle highlight (clean 1dp border + very subtle tint)
-                val strokeWidthPx = (1 * itemView.context.resources.displayMetrics.density).toInt()
-                cardView.strokeWidth = strokeWidthPx
+                // Apply a clean, animated highlight (no border)
+                cardView.strokeWidth = 0
                 
                 val typedValue = android.util.TypedValue()
                 itemView.context.theme.resolveAttribute(android.R.attr.colorPrimary, typedValue, true)
                 val primaryColor = typedValue.data
-                cardView.strokeColor = primaryColor
                 
-                // Very subtle primary tint
-                cardView.setCardBackgroundColor(ColorUtils.setAlphaComponent(primaryColor, 20))
+                // Use a more visible but still subtle background tint
+                val tintColor = ColorUtils.setAlphaComponent(primaryColor, 35)
+                
+                // Animate the background tint with a smooth fade-in
+                cardView.alpha = 0.7f
+                cardView.setCardBackgroundColor(tintColor)
+                cardView.animate()
+                    .alpha(1f)
+                    .setDuration(400)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .start()
+                
+                // Subtle elevation boost for depth
+                cardView.cardElevation = 6f
             } else {
                 // Reset to default
                 cardView.strokeWidth = 0
+                cardView.alpha = 1f
                 val typedValue = android.util.TypedValue()
                 // Use colorSurfaceContainer to match item_chapter_card.xml default
                 itemView.context.theme.resolveAttribute(com.google.android.material.R.attr.colorSurfaceContainer, typedValue, true)
                 cardView.setCardBackgroundColor(typedValue.data)
+                cardView.cardElevation = 4f // Default elevation from XML
+            }
+        }
+        
+        private fun getRelativeTime(timestamp: Long): String {
+            val now = System.currentTimeMillis()
+            val diff = now - timestamp
+            
+            val seconds = diff / 1000
+            val minutes = seconds / 60
+            val hours = minutes / 60
+            val days = hours / 24
+            
+            return when {
+                seconds < 60 -> "Just now"
+                minutes < 60 -> "${minutes}m ago"
+                hours < 24 -> "${hours}h ago"
+                days == 1L -> "Yesterday"
+                days < 7 -> "${days}d ago"
+                days < 30 -> "${days / 7}w ago"
+                else -> "${days / 30}mo ago"
             }
         }
     }

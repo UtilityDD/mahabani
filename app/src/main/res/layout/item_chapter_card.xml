@@ -46,6 +46,7 @@
             app:layout_constraintVertical_chainStyle="packed"
             tools:text="Chapter Heading That Can Be Quite Long" />
 
+
         <LinearLayout
             android:id="@+id/subtitleContainer"
             android:layout_width="0dp"
@@ -81,23 +82,19 @@
                 android:textColor="?attr/colorOnPrimaryContainer"
                 android:visibility="gone" />
 
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
-
-            <TextView
-                android:id="@+id/textViewHistory"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:drawableStart="@drawable/ic_history"
-                android:drawablePadding="4dp"
-                android:gravity="center_vertical"
-                android:textAppearance="?attr/textAppearanceLabelMedium"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:visibility="gone"
-                tools:text="3 / 2h 15m" />
-
         </LinearLayout>
+
+        <!-- Reading history indicator dot (shows on serial badge) -->
+        <View
+            android:id="@+id/historyIndicatorDot"
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/history_indicator_dot"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="@id/textViewSerial"
+            app:layout_constraintTop_toTopOf="@id/textViewSerial" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>
