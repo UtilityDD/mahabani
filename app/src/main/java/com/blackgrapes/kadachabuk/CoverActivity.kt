@@ -122,6 +122,9 @@ class CoverActivity : AppCompatActivity() {
         handleWindowInsets()
     }
 
+    private val quoteRepository = QuoteRepository()
+    private val quoteCardGenerator by lazy { QuoteCardGenerator(this) }
+
     private fun setupSocialIcons() {
         findViewById<View>(R.id.fab_video).setOnClickListener {
             startActivity(Intent(this, VideoActivity::class.java))
@@ -138,16 +141,56 @@ class CoverActivity : AppCompatActivity() {
         }
 
         findViewById<View>(R.id.fab_share).setOnClickListener {
-            shareApp()
+            shareQuote()
         }
     }
 
-    private fun shareApp() {
-        val shareIntent = Intent(Intent.ACTION_SEND)
-        shareIntent.type = "text/plain"
-        val shareMessage = "Check out the Mahabani app! Download it now to read sacred books and watch spiritual videos.\n\nhttps://play.google.com/store/apps/details?id=${packageName}"
-        shareIntent.putExtra(Intent.EXTRA_TEXT, shareMessage)
-        startActivity(Intent.createChooser(shareIntent, "Share Mahabani via"))
+    private fun shareQuote() {
+        // Show elegant loading animation
+        val loadingDialog = MaterialAlertDialogBuilder(this)
+            .setView(R.layout.layout_loading_quote)
+            .setCancelable(false)
+            .create()
+        
+        // Use a simple progress bar if custom layout is not yet created, 
+        // but for "suitable animation" let's try to inflate a simple view or just standard dialog for now
+        // to avoid crashing if layout is missing. I'll create the layout layout_loading_quote.xml next.
+        loadingDialog.setMessage("Brewing a nugget of wisdom...")
+        loadingDialog.show()
+
+        lifecycleScope.launch {
+            // 1. Fetch Quote
+            val quote = quoteRepository.fetchRandomQuote()
+            
+            if (quote != null) {
+                // 2. Generate Image
+                val imageFile = quoteCardGenerator.generateQuoteCard(quote)
+                
+                loadingDialog.dismiss()
+                
+                if (imageFile != null) {
+                    // 3. Share Image
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        this@CoverActivity,
+                        "${applicationContext.packageName}.fileprovider",
+                        imageFile
+                    )
+                    
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "image/png"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_TEXT, "Shared via Mahabani App\n\nhttps://play.google.com/store/apps/details?id=$packageName")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    startActivity(Intent.createChooser(shareIntent, "Share Wisdom"))
+                } else {
+                    Toast.makeText(this@CoverActivity, "Failed to generate quote card", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                loadingDialog.dismiss()
+                Toast.makeText(this@CoverActivity, "Could not fetch quotes. Check internet.", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun openUrl(url: String) {

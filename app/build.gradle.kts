@@ -103,4 +103,7 @@ dependencies {
     // Media3 for Audio Streaming
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
+
+    // QR Code Generation
+    implementation("com.google.zxing:core:3.5.2")
 }

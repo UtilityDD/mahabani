@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/quote_card_root"
+    android:layout_width="1080px"
+    android:layout_height="1350px"
+    android:background="@drawable/background_quote_card"
+    android:paddingHorizontal="120px">
+
+    <!-- Subtle Texture Overlay if needed, but keeping it clean for now -->
+    
+    <!-- Large Background Quote Mark -->
+    <TextView
+        android:id="@+id/bg_quote_mark"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="“"
+        android:textSize="400sp"
+        android:textColor="#C8A951"
+        android:fontFamily="serif"
+        android:includeFontPadding="false"
+        android:alpha="0.05"
+        android:layout_marginTop="80px"
+        android:layout_marginStart="-40px"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Quote Block Container -->
+    <LinearLayout
+        android:id="@+id/quote_container"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.5">
+
+        <!-- Quote Text -->
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/tv_quote_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:fontFamily="@font/tiro_bangla_regular"
+            android:text="Select a quote to generate..."
+            android:textColor="#F2F2F2"
+            android:lineSpacingMultiplier="1.6"
+            android:breakStrategy="high_quality"
+            android:hyphenationFrequency="full"
+            app:autoSizeTextType="uniform"
+            app:autoSizeMinTextSize="32px"
+            app:autoSizeMaxTextSize="96px"
+            app:autoSizeStepGranularity="2px"
+            android:maxLines="14"
+            android:ellipsize="end"/>
+
+        <!-- Gold Divider -->
+        <View
+            android:layout_width="60dp"
+            android:layout_height="1dp"
+            android:background="#C8A951"
+            android:layout_marginTop="32px"
+            android:layout_marginBottom="32px"/>
+
+        <!-- Source Name (Dynamic) -->
+        <TextView
+            android:id="@+id/tv_quote_source"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif"
+            android:gravity="center"
+            android:letterSpacing="0.1"
+            android:text="SOURCE BOOK"
+            android:textColor="#C8A951"
+            android:textSize="36px"
+            android:layout_marginBottom="16px"/>
+
+        <!-- Fixed Author Name -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-light"
+            android:text="ঠাকুর বালক ব্রহ্মচারী"
+            android:textColor="#88C8A951"
+            android:textSize="28px"
+            android:letterSpacing="0.05"/>
+
+    </LinearLayout>
+
+    <!-- QR Code (Placed above footer text) -->
+    <ImageView
+        android:id="@+id/iv_qr_code"
+        android:layout_width="120px"
+        android:layout_height="120px"
+        android:layout_marginBottom="16px"
+        android:scaleType="fitCenter"
+        android:alpha="0.4"
+        app:layout_constraintBottom_toTopOf="@+id/footer_text"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        tools:src="@android:drawable/ic_menu_gallery"/>
+
+    <!-- App Branding (Bottom Safe Zone) -->
+    <TextView
+        android:id="@+id/footer_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="60px"
+        android:text="MAHABANI"
+        android:textColor="#33F2F2F2"
+        android:textSize="24px"
+        android:letterSpacing="0.3"
+        android:fontFamily="serif"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
