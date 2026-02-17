@@ -136,6 +136,18 @@ class CoverActivity : AppCompatActivity() {
             val url = "https://whatsapp.com/channel/0029VaGHofF5Ui2RXQ2JbT3u"
             openUrl(url)
         }
+
+        findViewById<View>(R.id.fab_share).setOnClickListener {
+            shareApp()
+        }
+    }
+
+    private fun shareApp() {
+        val shareIntent = Intent(Intent.ACTION_SEND)
+        shareIntent.type = "text/plain"
+        val shareMessage = "Check out the Mahabani app! Download it now to read sacred books and watch spiritual videos.\n\nhttps://play.google.com/store/apps/details?id=${packageName}"
+        shareIntent.putExtra(Intent.EXTRA_TEXT, shareMessage)
+        startActivity(Intent.createChooser(shareIntent, "Share Mahabani via"))
     }
 
     private fun openUrl(url: String) {
@@ -168,7 +180,8 @@ class CoverActivity : AppCompatActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(searchCard) { view, insets ->
             val systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             val params = view.layoutParams as android.view.ViewGroup.MarginLayoutParams
-            params.topMargin = systemBars.top + dpToPx(16f)
+            // Increase to 24dp to give enough clearance for the icons that straddle the top border
+            params.topMargin = systemBars.top + dpToPx(24f)
             view.layoutParams = params
             insets
         }
@@ -184,17 +197,6 @@ class CoverActivity : AppCompatActivity() {
             fabParams.bottomMargin = systemBars.bottom + dpToPx(24f)
             fabLanguage.layoutParams = fabParams
             
-            insets
-        }
-        
-        // Add insets handling for social icons row to avoid status bar overlap
-        val socialIconsRow = findViewById<View>(R.id.social_icons_row)
-        ViewCompat.setOnApplyWindowInsetsListener(socialIconsRow) { view, insets ->
-            val systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-            val params = view.layoutParams as android.view.ViewGroup.MarginLayoutParams
-            params.topMargin = systemBars.top + dpToPx(8f)
-            params.marginEnd = dpToPx(16f)
-            view.layoutParams = params
             insets
         }
     }

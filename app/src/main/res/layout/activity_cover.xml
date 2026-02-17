@@ -128,34 +128,35 @@
             app:layout_constraintBottom_toBottomOf="parent"
             tools:listitem="@layout/item_library_book_card" />
 
-        <!-- Social Icons (Top-Right Corner, Horizontal) -->
+        <!-- Social Icons (Badge style on search card top border) -->
         <LinearLayout
             android:id="@+id/social_icons_row"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginEnd="20dp"
-            android:layout_marginTop="20dp"
+            android:layout_marginEnd="24dp"
             android:gravity="center"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
+            app:layout_constraintEnd_toEndOf="@id/search_card"
+            app:layout_constraintTop_toTopOf="@id/search_card"
+            app:layout_constraintBottom_toTopOf="@id/search_card">
 
             <!-- Video Icon -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/fab_video"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_marginEnd="6dp"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="3dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
                 app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
                 android:clickable="true"
                 android:focusable="true"
-                app:strokeWidth="0dp">
+                app:strokeWidth="1dp"
+                app:strokeColor="#1A000000">
 
                 <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
                     android:layout_gravity="center"
                     app:tint="#FF0000"
                     android:src="@drawable/ic_play_arrow"
@@ -165,19 +166,20 @@
             <!-- Facebook Icon -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/fab_facebook"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_marginEnd="6dp"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="3dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
                 app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
                 android:clickable="true"
                 android:focusable="true"
-                app:strokeWidth="0dp">
+                app:strokeWidth="1dp"
+                app:strokeColor="#1A000000">
 
                 <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
                     android:layout_gravity="center"
                     app:tint="#1877F2"
                     android:src="@drawable/ic_facebook"
@@ -187,22 +189,46 @@
             <!-- WhatsApp Icon -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/fab_whatsapp"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="3dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="6dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
                 app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
                 android:clickable="true"
                 android:focusable="true"
-                app:strokeWidth="0dp">
+                app:strokeWidth="1dp"
+                app:strokeColor="#1A000000">
 
                 <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
                     android:layout_gravity="center"
                     app:tint="#25D366"
                     android:src="@drawable/ic_whatsapp"
                     android:contentDescription="WhatsApp Us" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Share Icon -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/fab_share"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
+                android:clickable="true"
+                android:focusable="true"
+                app:strokeWidth="1dp"
+                app:strokeColor="#1A000000">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_gravity="center"
+                    app:tint="?attr/colorPrimary"
+                    android:src="@drawable/ic_share"
+                    android:contentDescription="Share App" />
             </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
