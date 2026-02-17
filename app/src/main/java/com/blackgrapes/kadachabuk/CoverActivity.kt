@@ -175,22 +175,27 @@ class CoverActivity : AppCompatActivity() {
         }
         
         val shelfContainer = findViewById<View>(R.id.shelf_books_container)
-        val socialBar = findViewById<View>(R.id.social_floating_bar)
         ViewCompat.setOnApplyWindowInsetsListener(shelfContainer) { view, insets ->
             val systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             view.setPadding(view.paddingLeft, dpToPx(8f), view.paddingRight, systemBars.bottom + dpToPx(100f))
-            
-            // Adjust social bar bottom margin to avoid navigation bar
-            val socialParams = socialBar.layoutParams as android.view.ViewGroup.MarginLayoutParams
-            socialParams.bottomMargin = systemBars.bottom + dpToPx(24f)
-            socialBar.layoutParams = socialParams
 
-            // Adjust language FAB bottom margin too for consistency
+            // Adjust language FAB bottom margin for consistency
             val fabLanguage = findViewById<View>(R.id.fab_language)
             val fabParams = fabLanguage.layoutParams as android.view.ViewGroup.MarginLayoutParams
             fabParams.bottomMargin = systemBars.bottom + dpToPx(24f)
             fabLanguage.layoutParams = fabParams
             
+            insets
+        }
+        
+        // Add insets handling for social icons row to avoid status bar overlap
+        val socialIconsRow = findViewById<View>(R.id.social_icons_row)
+        ViewCompat.setOnApplyWindowInsetsListener(socialIconsRow) { view, insets ->
+            val systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            val params = view.layoutParams as android.view.ViewGroup.MarginLayoutParams
+            params.topMargin = systemBars.top + dpToPx(8f)
+            params.marginEnd = dpToPx(16f)
+            view.layoutParams = params
             insets
         }
     }

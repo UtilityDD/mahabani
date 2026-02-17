@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -9,34 +10,38 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
-        android:paddingStart="0dp"
-        android:paddingTop="4dp"
-        android:paddingEnd="0dp"
-        android:paddingBottom="80dp" />
+        android:paddingBottom="80dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:listitem="@layout/item_video" />
 
     <TextView
         android:id="@+id/empty_favorites_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:drawablePadding="16dp"
         android:gravity="center"
         android:padding="32dp"
-        android:text="Add videos to your favorites by tapping the ♡ icon."
-        android:textAppearance="?attr/textAppearanceTitleMedium"
+        android:text="No favorite videos yet.\nTap the heart icon on any video to add it here."
+        android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant"
         android:visibility="gone"
-        app:drawableTopCompat="@drawable/ic_favorite_border"
-        app:drawableTint="?attr/colorOnSurfaceVariant" />
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_scroll_to_top"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
+        android:contentDescription="Scroll to top"
         android:src="@drawable/ic_arrow_upward"
         android:visibility="gone"
-        app:backgroundTint="?attr/colorPrimaryContainer"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:tint="?attr/colorOnPrimaryContainer" />
-</FrameLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
