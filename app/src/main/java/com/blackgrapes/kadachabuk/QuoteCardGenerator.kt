@@ -15,6 +15,10 @@ import android.widget.ImageView
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 
+import android.graphics.drawable.GradientDrawable
+import androidx.constraintlayout.widget.ConstraintLayout
+import kotlin.random.Random
+
 class QuoteCardGenerator(private val context: Context) {
 
     fun generateQuoteCard(quote: Quote): File? {
@@ -26,9 +30,59 @@ class QuoteCardGenerator(private val context: Context) {
             val quoteText = view.findViewById<TextView>(R.id.tv_quote_text)
             val quoteSource = view.findViewById<TextView>(R.id.tv_quote_source)
             val qrCodeImage = view.findViewById<ImageView>(R.id.iv_qr_code)
+            val bgPhoto = view.findViewById<ImageView>(R.id.iv_bg_photo)
+            val bgGradient = view.findViewById<View>(R.id.v_bg_gradient)
+            val bgQuoteMark = view.findViewById<TextView>(R.id.bg_quote_mark)
 
             quoteText.text = quote.text
             quoteSource.text = "— ${quote.source}"
+
+            // Background Photo Randomization
+            val photoIndex = Random.nextInt(1, 12) // 1 to 11
+            val photoResId = context.resources.getIdentifier("card_photo_$photoIndex", "drawable", context.packageName)
+            if (photoResId != 0) {
+                bgPhoto.setImageResource(photoResId)
+                
+                // Randomly choose Left or Right
+                val isLeft = Random.nextBoolean()
+                val params = bgPhoto.layoutParams as ConstraintLayout.LayoutParams
+                val quoteParams = bgQuoteMark.layoutParams as ConstraintLayout.LayoutParams
+                
+                val charcoal = Color.parseColor("#0F0F0F")
+                
+                if (isLeft) {
+                    // Photo on Left -> Watermark on Right
+                    params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                    params.endToStart = ConstraintLayout.LayoutParams.UNSET
+                    
+                    quoteParams.startToStart = ConstraintLayout.LayoutParams.UNSET
+                    quoteParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                    quoteParams.marginEnd = -80 // Hang off the right edge slightly for flair
+                    quoteParams.marginStart = 0
+
+                    // Gradient: Transparent (Start) to Charcoal (End)
+                    val gd = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.TRANSPARENT, charcoal))
+                    bgGradient.background = gd
+                } else {
+                    // Photo on Right -> Watermark on Left
+                    params.startToStart = ConstraintLayout.LayoutParams.UNSET
+                    params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                    
+                    quoteParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                    quoteParams.endToEnd = ConstraintLayout.LayoutParams.UNSET
+                    quoteParams.marginStart = -80 // Hang off the left edge slightly for flair
+                    quoteParams.marginEnd = 0
+
+                    // Gradient: Charcoal (Start) to Transparent (End)
+                    val gd = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(charcoal, Color.TRANSPARENT))
+                    bgGradient.background = gd
+                }
+                bgPhoto.layoutParams = params
+                bgQuoteMark.layoutParams = quoteParams
+            } else {
+                bgPhoto.visibility = View.GONE
+                bgGradient.visibility = View.GONE
+            }
 
             // Generate and set QR Code
             val playStoreUrl = "https://play.google.com/store/apps/details?id=${context.packageName}"

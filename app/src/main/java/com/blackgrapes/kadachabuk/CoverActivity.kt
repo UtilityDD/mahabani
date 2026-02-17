@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.content.res.Configuration
+import java.io.File
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
@@ -120,10 +121,18 @@ class CoverActivity : AppCompatActivity() {
         setupSearch()
         setupSocialIcons()
         handleWindowInsets()
+
+        // Kickstart background quote generation after a short delay
+        lifecycleScope.launch {
+            delay(2000)
+            preGenerateQuote()
+        }
     }
 
     private val quoteRepository = QuoteRepository()
     private val quoteCardGenerator by lazy { QuoteCardGenerator(this) }
+    private var preGeneratedQuoteFile: File? = null
+    private var isGeneratingQuote = false
 
     private fun setupSocialIcons() {
         findViewById<View>(R.id.fab_video).setOnClickListener {
@@ -145,44 +154,71 @@ class CoverActivity : AppCompatActivity() {
         }
     }
 
+    private fun preGenerateQuote() {
+        if (isGeneratingQuote || preGeneratedQuoteFile != null) return
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            isGeneratingQuote = true
+            try {
+                val quote = quoteRepository.fetchRandomQuote()
+                if (quote != null) {
+                    val file = quoteCardGenerator.generateQuoteCard(quote)
+                    if (file != null) {
+                        preGeneratedQuoteFile = file
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isGeneratingQuote = false
+            }
+        }
+    }
+
     private fun shareQuote() {
-        // Show elegant loading animation
+        // If we have a pre-generated card, share it immediately!
+        val cachedFile = preGeneratedQuoteFile
+        if (cachedFile != null && cachedFile.exists()) {
+            shareFile(cachedFile)
+            preGeneratedQuoteFile = null
+            preGenerateQuote() // Start preparing the next one
+            return
+        }
+
+        // Fallback: Show loading and generate if not ready
         val loadingDialog = MaterialAlertDialogBuilder(this)
             .setView(R.layout.layout_loading_quote)
             .setCancelable(false)
             .create()
         
-        // Use a simple progress bar if custom layout is not yet created, 
-        // but for "suitable animation" let's try to inflate a simple view or just standard dialog for now
-        // to avoid crashing if layout is missing. I'll create the layout layout_loading_quote.xml next.
         loadingDialog.setMessage("Brewing a nugget of wisdom...")
         loadingDialog.show()
 
         lifecycleScope.launch {
-            // 1. Fetch Quote
-            val quote = quoteRepository.fetchRandomQuote()
-            
-            if (quote != null) {
-                // 2. Generate Image
-                val imageFile = quoteCardGenerator.generateQuoteCard(quote)
-                
+            // Check if generation is already in progress
+            var waitCount = 0
+            while (isGeneratingQuote && waitCount < 50) { // Wait up to 5 seconds
+                delay(100)
+                waitCount++
+            }
+
+            val fileAfterWait = preGeneratedQuoteFile
+            if (fileAfterWait != null && fileAfterWait.exists()) {
                 loadingDialog.dismiss()
-                
+                shareFile(fileAfterWait)
+                preGeneratedQuoteFile = null
+                preGenerateQuote()
+                return@launch
+            }
+
+            // If still not ready, force a fresh generation
+            val quote = quoteRepository.fetchRandomQuote()
+            if (quote != null) {
+                val imageFile = quoteCardGenerator.generateQuoteCard(quote)
+                loadingDialog.dismiss()
                 if (imageFile != null) {
-                    // 3. Share Image
-                    val uri = androidx.core.content.FileProvider.getUriForFile(
-                        this@CoverActivity,
-                        "${applicationContext.packageName}.fileprovider",
-                        imageFile
-                    )
-                    
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "image/png"
-                        putExtra(Intent.EXTRA_STREAM, uri)
-                        putExtra(Intent.EXTRA_TEXT, "Shared via Mahabani App\n\nhttps://play.google.com/store/apps/details?id=$packageName")
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    startActivity(Intent.createChooser(shareIntent, "Share Wisdom"))
+                    shareFile(imageFile)
+                    preGenerateQuote() // Prep next one
                 } else {
                     Toast.makeText(this@CoverActivity, "Failed to generate quote card", Toast.LENGTH_SHORT).show()
                 }
@@ -190,6 +226,27 @@ class CoverActivity : AppCompatActivity() {
                 loadingDialog.dismiss()
                 Toast.makeText(this@CoverActivity, "Could not fetch quotes. Check internet.", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun shareFile(imageFile: File) {
+        try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                this,
+                "${applicationContext.packageName}.fileprovider",
+                imageFile
+            )
+            
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_TEXT, "Shared via Mahabani App\n\nhttps://play.google.com/store/apps/details?id=$packageName")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(shareIntent, "Share Wisdom"))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Sharing failed", Toast.LENGTH_SHORT).show()
         }
     }
 
