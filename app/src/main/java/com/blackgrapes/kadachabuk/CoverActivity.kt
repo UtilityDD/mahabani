@@ -128,13 +128,12 @@ class CoverActivity : AppCompatActivity() {
         }
 
         findViewById<View>(R.id.fab_facebook).setOnClickListener {
-            val url = "https://www.facebook.com/thakurbalakbrahmachari"
+            val url = "https://www.facebook.com/share/1FHMb5TPHr/"
             openUrl(url)
         }
 
         findViewById<View>(R.id.fab_whatsapp).setOnClickListener {
-            // Placeholder/Generic WhatsApp link - opens WhatsApp with a pre-filled message
-            val url = "https://wa.me/?text=Joy%20Ram%20Narayan%20Ram"
+            val url = "https://whatsapp.com/channel/0029VaGHofF5Ui2RXQ2JbT3u"
             openUrl(url)
         }
     }
