@@ -131,6 +131,20 @@
                 tools:text="12:45"
                 tools:visibility="visible" />
 
+            <!-- Share Overlay -->
+            <ImageButton
+                android:id="@+id/shareButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="bottom|end"
+                android:layout_marginEnd="52dp"
+                android:layout_marginBottom="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Share video"
+                android:padding="12dp"
+                android:src="@drawable/ic_share"
+                app:tint="@android:color/white" />
+
             <!-- Favorite Overlay -->
             <ImageButton
                 android:id="@+id/favoriteButton"

@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.webkit.WebChromeClient
 import android.webkit.WebView
+import android.content.Intent
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.ProgressBar
@@ -33,6 +34,7 @@ class VideoAdapter(
         val remark: TextView = view.findViewById(R.id.videoRemark)
         val webView: WebView = view.findViewById(R.id.video_webview)
         val favoriteButton: ImageButton = view.findViewById(R.id.favoriteButton)
+        val shareButton: ImageButton = view.findViewById(R.id.shareButton)
         val progressBar: ProgressBar = view.findViewById(R.id.video_progress_bar)
         val playButton: FrameLayout = view.findViewById(R.id.play_button)
         val collapseButton: ImageButton = view.findViewById(R.id.collapse_button)
@@ -118,6 +120,13 @@ class VideoAdapter(
             holder.favoriteButton.startAnimation(growAnim)
             holder.favoriteButton.postDelayed({ holder.favoriteButton.isClickable = true }, 300)
          }
+
+        holder.shareButton.setOnClickListener {
+            val currentPosition = holder.adapterPosition
+            if (currentPosition == RecyclerView.NO_POSITION) return@setOnClickListener
+            val clickedVideo = videos[currentPosition]
+            shareVideo(it.context, clickedVideo)
+        }
 
         if (position == currentlyPlayingPosition) {
             // PLAYING STATE
@@ -253,6 +262,15 @@ class VideoAdapter(
     }
 
     override fun getItemCount() = videos.size
+
+    private fun shareVideo(context: Context, video: Video) {
+        val shareText = "Watch this video: ${video.remark}\n\n${video.link}\n\nShared via Mahabani App"
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, shareText)
+        }
+        context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
+    }
 
     fun updateVideos(newVideos: List<Video>) {
         val diffCallback = VideoDiffCallback(this.videos, newVideos)
