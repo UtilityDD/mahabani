@@ -931,51 +931,59 @@ class CoverActivity : AppCompatActivity() {
     private fun showAboutPageOverlay(bookId: String, langCode: String, onFinished: () -> Unit) {
         val rootView = window.decorView.findViewById<android.view.ViewGroup>(android.R.id.content)
         
-        // Full screen about overlay
+        // Full screen about overlay with a lighter, more ethereal dark blur
         val aboutOverlay = android.widget.FrameLayout(this)
         aboutOverlay.layoutParams = android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT
         )
-        aboutOverlay.setBackgroundColor(android.graphics.Color.parseColor("#E6000000")) // Deep dark blur
+        aboutOverlay.setBackgroundColor(android.graphics.Color.parseColor("#D9000000")) 
         aboutOverlay.alpha = 0f
         aboutOverlay.elevation = dpToPx(30f).toFloat()
 
-        // Content Card (Manuscript Style)
+        // Content Card (Manuscript Style) - Taller for a page-like appearance
         val cardView = com.google.android.material.card.MaterialCardView(this)
         val cardParams = android.widget.FrameLayout.LayoutParams(
-            dpToPx(320f),
-            dpToPx(500f)
+            dpToPx(340f),
+            dpToPx(560f)
         )
         cardParams.gravity = android.view.Gravity.CENTER
         cardView.layoutParams = cardParams
-        cardView.radius = dpToPx(8f).toFloat()
-        cardView.cardElevation = dpToPx(20f).toFloat()
+        cardView.radius = dpToPx(4f).toFloat() // Sharper corners for a paper look
+        cardView.cardElevation = dpToPx(24f).toFloat()
         cardView.setBackgroundResource(R.drawable.paper_texture_background_light)
         
         val contentLayout = android.widget.LinearLayout(this)
         contentLayout.orientation = android.widget.LinearLayout.VERTICAL
-        contentLayout.setPadding(dpToPx(24f), dpToPx(24f), dpToPx(24f), dpToPx(16f))
+        contentLayout.setPadding(dpToPx(32f), dpToPx(36f), dpToPx(32f), dpToPx(24f))
         contentLayout.gravity = android.view.Gravity.CENTER_HORIZONTAL
         
-        // Title in Galada
+        // Title in Galada (Stylized)
         val titleText = TextView(this)
         val titleParams = android.widget.LinearLayout.LayoutParams(
             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        titleParams.bottomMargin = dpToPx(16f)
+        titleParams.bottomMargin = dpToPx(8f)
         titleText.layoutParams = titleParams
-        titleText.textSize = 24f
-        titleText.setTextColor(android.graphics.Color.parseColor("#3E2723"))
+        titleText.textSize = 28f
+        titleText.setTextColor(android.graphics.Color.parseColor("#2D1B18")) // Darker, almost ink black
         titleText.typeface = androidx.core.content.res.ResourcesCompat.getFont(this, R.font.galada)
+        titleText.gravity = android.view.Gravity.CENTER
         
+        // Divider (Elegance)
+        val divider = android.view.View(this)
+        val divParams = android.widget.LinearLayout.LayoutParams(dpToPx(120f), dpToPx(1f))
+        divParams.bottomMargin = dpToPx(24f)
+        divider.layoutParams = divParams
+        divider.setBackgroundColor(android.graphics.Color.parseColor("#A1887F")) // Muted cocoa silver
+
         // Fetch book from DB or use placeholder
         lifecycleScope.launch {
             val book = bookViewModel.libraryBooks.value?.find { it.bookId == bookId }
             titleText.text = book?.getLocalizedName(langCode) ?: "About"
             
-            // Content (Markwon)
+            // Content (Manuscript Style with Tiro Bangla)
             val scrollView = android.widget.ScrollView(this@CoverActivity)
             val scrollParams = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
@@ -983,17 +991,20 @@ class CoverActivity : AppCompatActivity() {
                 1f
             )
             scrollView.layoutParams = scrollParams
+            scrollView.isVerticalScrollBarEnabled = false // Clean look
             
             val aboutContent = TextView(this@CoverActivity)
-            aboutContent.setTextColor(android.graphics.Color.parseColor("#4E342E"))
-            aboutContent.textSize = 15f
-            aboutContent.setLineSpacing(0f, 1.25f)
+            aboutContent.setTextColor(android.graphics.Color.parseColor("#422A25"))
+            aboutContent.textSize = 15.5f
+            aboutContent.setLineSpacing(0f, 1.45f) // Generous line height for reading
+            // Switch to Tiro Bangla for professional book-feel
+            aboutContent.typeface = androidx.core.content.res.ResourcesCompat.getFont(this@CoverActivity, R.font.tiro_bangla_regular)
             
             val markwon = Markwon.builder(this@CoverActivity)
                 .usePlugin(LinkifyPlugin.create())
                 .build()
             
-            // Get content from ViewModel (it was pre-fetched in startMeditativeTransition)
+            // Get content from ViewModel
             bookViewModel.aboutInfo.observe(this@CoverActivity) { result ->
                 val content = result.getOrNull()
                 if (!content.isNullOrEmpty()) {
@@ -1003,19 +1014,30 @@ class CoverActivity : AppCompatActivity() {
             
             scrollView.addView(aboutContent)
             contentLayout.addView(titleText)
+            contentLayout.addView(divider)
             contentLayout.addView(scrollView)
             
-            // Continue Button
-            val continueButton = android.widget.Button(this@CoverActivity, null, com.google.android.material.R.attr.materialButtonStyle)
+            // Minimalist Entry Button
+            val continueButton = android.widget.TextView(this@CoverActivity)
             val btnParams = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            btnParams.topMargin = dpToPx(16f)
+            btnParams.topMargin = dpToPx(20f)
             continueButton.layoutParams = btnParams
-            continueButton.text = "Continue" // Potentially localize this?
-            continueButton.setBackgroundColor(android.graphics.Color.parseColor("#5D4037"))
-            continueButton.setTextColor(android.graphics.Color.WHITE)
+            
+            // Localize button text
+            continueButton.text = if (langCode == "bn") "প্রবেশ করুন" else if (langCode == "hi") "प्रवेश करें" else "Start Reading"
+            continueButton.textSize = 14f
+            continueButton.setTextColor(android.graphics.Color.parseColor("#5D4037"))
+            continueButton.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            continueButton.setPadding(dpToPx(24f), dpToPx(10f), dpToPx(24f), dpToPx(10f))
+            
+            // Set a thin subtle border instead of solid background
+            val gd = android.graphics.drawable.GradientDrawable()
+            gd.setStroke(dpToPx(1f), android.graphics.Color.parseColor("#C6A29C")) // Pale Rose Gold
+            gd.cornerRadius = dpToPx(20f).toFloat()
+            continueButton.background = gd
             
             continueButton.setOnClickListener {
                 // 1. Fade out the About modal
