@@ -132,6 +132,7 @@ class CoverActivity : AppCompatActivity() {
     private val quoteRepository = QuoteRepository()
     private val quoteCardGenerator by lazy { QuoteCardGenerator(this) }
     private var preGeneratedQuoteFile: File? = null
+    private var cachedQuote: Quote? = null
     private var isGeneratingQuote = false
 
     private fun setupSocialIcons() {
@@ -165,6 +166,7 @@ class CoverActivity : AppCompatActivity() {
                     val file = quoteCardGenerator.generateQuoteCard(quote)
                     if (file != null) {
                         preGeneratedQuoteFile = file
+                        cachedQuote = quote
                     }
                 }
             } catch (e: Exception) {
@@ -178,9 +180,11 @@ class CoverActivity : AppCompatActivity() {
     private fun shareQuote() {
         // If we have a pre-generated card, share it immediately!
         val cachedFile = preGeneratedQuoteFile
-        if (cachedFile != null && cachedFile.exists()) {
-            shareFile(cachedFile)
+        val quote = cachedQuote
+        if (cachedFile != null && cachedFile.exists() && quote != null) {
+            shareFile(cachedFile, quote)
             preGeneratedQuoteFile = null
+            cachedQuote = null
             preGenerateQuote() // Start preparing the next one
             return
         }
@@ -203,21 +207,23 @@ class CoverActivity : AppCompatActivity() {
             }
 
             val fileAfterWait = preGeneratedQuoteFile
-            if (fileAfterWait != null && fileAfterWait.exists()) {
+            val quoteAfterWait = cachedQuote
+            if (fileAfterWait != null && fileAfterWait.exists() && quoteAfterWait != null) {
                 loadingDialog.dismiss()
-                shareFile(fileAfterWait)
+                shareFile(fileAfterWait, quoteAfterWait)
                 preGeneratedQuoteFile = null
+                cachedQuote = null
                 preGenerateQuote()
                 return@launch
             }
 
             // If still not ready, force a fresh generation
-            val quote = quoteRepository.fetchRandomQuote()
-            if (quote != null) {
-                val imageFile = quoteCardGenerator.generateQuoteCard(quote)
+            val freshQuote = quoteRepository.fetchRandomQuote()
+            if (freshQuote != null) {
+                val imageFile = quoteCardGenerator.generateQuoteCard(freshQuote)
                 loadingDialog.dismiss()
                 if (imageFile != null) {
-                    shareFile(imageFile)
+                    shareFile(imageFile, freshQuote)
                     preGenerateQuote() // Prep next one
                 } else {
                     Toast.makeText(this@CoverActivity, "Failed to generate quote card", Toast.LENGTH_SHORT).show()
@@ -229,7 +235,7 @@ class CoverActivity : AppCompatActivity() {
         }
     }
 
-    private fun shareFile(imageFile: File) {
+    private fun shareFile(imageFile: File, quote: Quote) {
         try {
             val uri = androidx.core.content.FileProvider.getUriForFile(
                 this,
@@ -237,10 +243,12 @@ class CoverActivity : AppCompatActivity() {
                 imageFile
             )
             
+            val shareText = "\"${quote.text}\"\n\n— ${quote.source}\n\nShared via Mahabani App\nhttps://play.google.com/store/apps/details?id=$packageName"
+            
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_TEXT, "Shared via Mahabani App\n\nhttps://play.google.com/store/apps/details?id=$packageName")
+                putExtra(Intent.EXTRA_TEXT, shareText)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             startActivity(Intent.createChooser(shareIntent, "Share Wisdom"))
