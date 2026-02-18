@@ -76,7 +76,7 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
         private val historyIndicatorDot: View = itemView.findViewById(R.id.historyIndicatorDot)
         private val lastReadTextView: TextView = itemView.findViewById(R.id.textViewLastRead)
         val serialTextView: TextView = itemView.findViewById(R.id.textViewSerial)
-
+        private val indicatorBar: View = itemView.findViewById(R.id.indicatorBar)
 
         fun bind(chapter: Chapter, isLastRead: Boolean, lastReadTimestamp: Long) {
             headingTextView.text = chapter.heading
@@ -123,39 +123,50 @@ class ChapterAdapter(private var chapters: List<Chapter>) :
                 lastReadTextView.visibility = View.GONE
             }
 
-            // Visually distinguish the last read chapter
+            // --- Pro UI Highlight Logic for Last Read ---
+            val context = itemView.context
+            val typedValue = android.util.TypedValue()
+            context.theme.resolveAttribute(android.R.attr.colorPrimary, typedValue, true)
+            val primaryColor = typedValue.data
+
             if (isLastRead) {
-                // Apply a clean, animated highlight (no border)
-                cardView.strokeWidth = 0
+                // 1. Show sleek vertical indicator bar
+                indicatorBar.visibility = View.VISIBLE
+                indicatorBar.alpha = 0f
+                indicatorBar.animate().alpha(1f).setDuration(400).start()
+
+                // 2. Highlight the serial badge with solid primary color
+                serialTextView.setBackgroundResource(R.drawable.serial_background_solid) // Assume this exists or use color
+                serialTextView.setTextColor(android.graphics.Color.WHITE)
                 
-                val typedValue = android.util.TypedValue()
-                itemView.context.theme.resolveAttribute(android.R.attr.colorPrimary, typedValue, true)
-                val primaryColor = typedValue.data
+                // 3. Crisp thin stroke for the card
+                cardView.strokeWidth = dpToPx(1f, context)
+                cardView.setStrokeColor(android.content.res.ColorStateList.valueOf(primaryColor))
                 
-                // Use a more visible but still subtle background tint
-                val tintColor = ColorUtils.setAlphaComponent(primaryColor, 35)
+                // 4. Reset background to surface (remove legacy heavy tint)
+                context.theme.resolveAttribute(com.google.android.material.R.attr.colorSurfaceContainer, typedValue, true)
+                cardView.setCardBackgroundColor(typedValue.data)
                 
-                // Animate the background tint with a smooth fade-in
-                cardView.alpha = 0.7f
-                cardView.setCardBackgroundColor(tintColor)
-                cardView.animate()
-                    .alpha(1f)
-                    .setDuration(400)
-                    .setInterpolator(android.view.animation.DecelerateInterpolator())
-                    .start()
-                
-                // Subtle elevation boost for depth
-                cardView.cardElevation = 6f
+                // 5. Subtle elevation boost
+                cardView.cardElevation = dpToPx(6f, context).toFloat()
             } else {
                 // Reset to default
+                indicatorBar.visibility = View.GONE
+                
+                serialTextView.setBackgroundResource(R.drawable.serial_background)
+                context.theme.resolveAttribute(com.google.android.material.R.attr.colorOnPrimaryContainer, typedValue, true)
+                serialTextView.setTextColor(typedValue.data)
+
                 cardView.strokeWidth = 0
-                cardView.alpha = 1f
-                val typedValue = android.util.TypedValue()
-                // Use colorSurfaceContainer to match item_chapter_card.xml default
-                itemView.context.theme.resolveAttribute(com.google.android.material.R.attr.colorSurfaceContainer, typedValue, true)
+                cardView.cardElevation = dpToPx(4f, context).toFloat()
+                
+                context.theme.resolveAttribute(com.google.android.material.R.attr.colorSurfaceContainer, typedValue, true)
                 cardView.setCardBackgroundColor(typedValue.data)
-                cardView.cardElevation = 4f // Default elevation from XML
             }
+        }
+        
+        private fun dpToPx(dp: Float, context: Context): Int {
+            return (dp * context.resources.displayMetrics.density).toInt()
         }
         
         private fun getRelativeTime(timestamp: Long): String {

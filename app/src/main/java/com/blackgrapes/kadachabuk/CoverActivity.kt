@@ -1017,27 +1017,27 @@ class CoverActivity : AppCompatActivity() {
             contentLayout.addView(divider)
             contentLayout.addView(scrollView)
             
-            // Minimalist Entry Button
-            val continueButton = android.widget.TextView(this@CoverActivity)
+            // Interactive Lottie "Open Book" CTA
+            val continueButton = com.airbnb.lottie.LottieAnimationView(this@CoverActivity)
             val btnParams = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                dpToPx(100f),
+                dpToPx(100f)
             )
-            btnParams.topMargin = dpToPx(20f)
+            btnParams.topMargin = dpToPx(10f)
             continueButton.layoutParams = btnParams
             
-            // Localize button text
-            continueButton.text = if (langCode == "bn") "প্রবেশ করুন" else if (langCode == "hi") "प्रवेश करें" else "Start Reading"
-            continueButton.textSize = 14f
-            continueButton.setTextColor(android.graphics.Color.parseColor("#5D4037"))
-            continueButton.typeface = android.graphics.Typeface.DEFAULT_BOLD
-            continueButton.setPadding(dpToPx(24f), dpToPx(10f), dpToPx(24f), dpToPx(10f))
+            continueButton.setAnimation(R.raw.book)
+            continueButton.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
+            continueButton.playAnimation()
+            continueButton.alpha = 0.8f // Subtle transparency for a minimalist look
             
-            // Set a thin subtle border instead of solid background
-            val gd = android.graphics.drawable.GradientDrawable()
-            gd.setStroke(dpToPx(1f), android.graphics.Color.parseColor("#C6A29C")) // Pale Rose Gold
-            gd.cornerRadius = dpToPx(20f).toFloat()
-            continueButton.background = gd
+            // Add a small label underneath for clarity (Optional but recommended for accessibility)
+            val entryLabel = android.widget.TextView(this@CoverActivity)
+            entryLabel.text = if (langCode == "bn") "পড়তে শুরু করুন" else if (langCode == "hi") "पढ़ना शुरू करें" else "Tap to Read"
+            entryLabel.textSize = 12f
+            entryLabel.setTextColor(android.graphics.Color.parseColor("#8D6E63"))
+            entryLabel.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            entryLabel.gravity = android.view.Gravity.CENTER
             
             continueButton.setOnClickListener {
                 // 1. Fade out the About modal
@@ -1079,6 +1079,33 @@ class CoverActivity : AppCompatActivity() {
                 }
             }
             contentLayout.addView(continueButton)
+            contentLayout.addView(entryLabel)
+
+            // --- Smooth Auto-Scroll Logic ---
+            scrollView.post {
+                val scrollRange = aboutContent.height - scrollView.height
+                if (scrollRange > 0) {
+                    val animator = android.animation.ValueAnimator.ofInt(0, scrollRange)
+                    // Calculate duration based on distance: ~30ms per pixel (adjustable for speed)
+                    animator.duration = (scrollRange * 35L) 
+                    animator.startDelay = 3000 // 3-second delay before starting
+                    animator.interpolator = android.view.animation.LinearInterpolator()
+                    
+                    animator.addUpdateListener { animation ->
+                        scrollView.scrollTo(0, animation.animatedValue as Int)
+                    }
+
+                    // Stop auto-scroll if the user touches the ScrollView
+                    scrollView.setOnTouchListener { _, _ ->
+                        if (animator.isRunning) {
+                            animator.cancel()
+                        }
+                        false // Allow manual scroll to continue
+                    }
+                    
+                    animator.start()
+                }
+            }
         }
         
         cardView.addView(contentLayout)

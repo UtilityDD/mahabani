@@ -1179,86 +1179,159 @@ class MainActivity : AppCompatActivity() {
     private fun showAboutDialog(content: String? = null) {
         // If content is not provided, it means we need to fetch it first.
         if (content == null) {
-            // Set a flag in the ViewModel indicating our intent to show the dialog once data arrives.
-            bookViewModel.isFetchingAboutForDialog.value = true // This flag is still needed to trigger the observer
+            bookViewModel.isFetchingAboutForDialog.value = true
             val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
             val savedLangCode = sharedPreferences.getString("selected_language_code", null)
-            // Always use the cache for instant dialog display. The background fetch will keep it fresh.
-            savedLangCode?.let { bookViewModel.fetchAboutInfo(it, forceRefresh = false) }
-            return // Exit the function; the observer will call this function again with content.
+            savedLangCode?.let { bookViewModel.fetchAboutInfo(it, forceRefresh = false, bookId = currentBookId) }
+            return
         }
 
-        val dialogView = layoutInflater.inflate(R.layout.dialog_about, null)
-        val titleTextView = dialogView.findViewById<TextView>(R.id.about_title)
-        val aboutContentTextView = dialogView.findViewById<TextView>(R.id.about_content)
-        val dontShowAgainCheckbox = dialogView.findViewById<CheckBox>(R.id.checkbox_dont_show_again)
-        val closeButton = dialogView.findViewById<Button>(R.id.button_close)
+        val rootView = window.decorView.findViewById<android.view.ViewGroup>(android.R.id.content)
+        val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        val langCode = sharedPreferences.getString("selected_language_code", "bn") ?: "bn"
 
-        // Use Markwon to render the content as Markdown, enabling clickable links.
+        // Full screen about overlay
+        val aboutOverlay = android.widget.FrameLayout(this)
+        aboutOverlay.layoutParams = android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        aboutOverlay.setBackgroundColor(android.graphics.Color.parseColor("#D9000000")) 
+        aboutOverlay.alpha = 0f
+        aboutOverlay.elevation = dpToPx(30f).toFloat()
+
+        // Content Card (Manuscript Style)
+        val cardView = com.google.android.material.card.MaterialCardView(this)
+        val cardParams = android.widget.FrameLayout.LayoutParams(dpToPx(340f), dpToPx(560f))
+        cardParams.gravity = android.view.Gravity.CENTER
+        cardView.layoutParams = cardParams
+        cardView.radius = dpToPx(4f).toFloat() 
+        cardView.cardElevation = dpToPx(24f).toFloat()
+        cardView.setBackgroundResource(R.drawable.paper_texture_background_light)
+        
+        val contentLayout = android.widget.LinearLayout(this)
+        contentLayout.orientation = android.widget.LinearLayout.VERTICAL
+        contentLayout.setPadding(dpToPx(32f), dpToPx(36f), dpToPx(32f), dpToPx(24f))
+        contentLayout.gravity = android.view.Gravity.CENTER_HORIZONTAL
+
+        // Title
+        val titleTextView = TextView(this)
+        val currentBook = bookViewModel.libraryBooks.value?.find { it.bookId == currentBookId }
+        val bookName = currentBook?.getLocalizedName(langCode) ?: "Kada Chabuk"
+        titleTextView.text = bookName
+        titleTextView.textSize = 28f
+        titleTextView.setTextColor(android.graphics.Color.parseColor("#2D1B18"))
+        titleTextView.typeface = ResourcesCompat.getFont(this, R.font.galada)
+        titleTextView.gravity = android.view.Gravity.CENTER
+        val titleParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        titleParams.bottomMargin = dpToPx(8f)
+        titleTextView.layoutParams = titleParams
+
+        // Divider
+        val divider = android.view.View(this)
+        val divParams = android.widget.LinearLayout.LayoutParams(dpToPx(120f), dpToPx(1f))
+        divParams.bottomMargin = dpToPx(24f)
+        divider.layoutParams = divParams
+        divider.setBackgroundColor(android.graphics.Color.parseColor("#A1887F"))
+
+        // Scrollable Content
+        val scrollView = ScrollView(this)
+        val scrollParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+        )
+        scrollView.layoutParams = scrollParams
+        scrollView.isVerticalScrollBarEnabled = false
+
+        val aboutContentTextView = TextView(this)
+        aboutContentTextView.setTextColor(android.graphics.Color.parseColor("#422A25"))
+        aboutContentTextView.textSize = 15.5f
+        aboutContentTextView.setLineSpacing(0f, 1.45f)
+        aboutContentTextView.typeface = ResourcesCompat.getFont(this, R.font.tiro_bangla_regular)
+        
         val markwon = Markwon.builder(this)
             .usePlugin(LinkifyPlugin.create())
             .build()
-        markwon.setMarkdown(aboutContentTextView, content ?: "")
+        markwon.setMarkdown(aboutContentTextView, content)
 
-        // Apply custom styling to the title
-        titleTextView.setTypeface(null, Typeface.ITALIC)
-        val typedValue = TypedValue()
-        theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurfaceVariant, typedValue, true)
-        titleTextView.setTextColor(typedValue.data)
-
-        // Set dynamic book title
-        val sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-        val currentLangCode = sharedPreferences.getString("selected_language_code", "en") ?: "en"
-        val currentBook = bookViewModel.libraryBooks.value?.find { it.bookId == currentBookId }
-        val bookName = currentBook?.getLocalizedName(currentLangCode) ?: "Kada Chabuk"
-        titleTextView.text = "About $bookName"
-
-
-        // Show the "Don't show again" checkbox only on the initial startup dialog.
-        // The hasShownInitialAboutDialog flag from the ViewModel is the reliable source of truth here.
-        dontShowAgainCheckbox.visibility = if (bookViewModel.hasShownInitialAboutDialog) View.GONE else View.VISIBLE
-
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setView(dialogView)
-            .create()
-
-        val scrollView = dialogView.findViewById<ScrollView>(R.id.about_scroll_view)
-
-        closeButton.setOnClickListener {
-            dialog.dismiss()
+        scrollView.addView(aboutContentTextView)
+        
+        // Don't show again Logic (Only for startup)
+        val dontShowAgainCheckbox = android.widget.CheckBox(this)
+        // Adjust the condition: if it was triggered by initial load flag
+        if (!bookViewModel.hasShownInitialAboutDialog) {
+            dontShowAgainCheckbox.text = "Don't show on startup"
+            dontShowAgainCheckbox.textSize = 12f
+            dontShowAgainCheckbox.setTextColor(android.graphics.Color.GRAY)
+            contentLayout.addView(dontShowAgainCheckbox)
         }
 
-        dialog.setOnShowListener {
-            (it as? Dialog)?.window?.attributes?.windowAnimations = R.style.DialogAnimation
+        contentLayout.addView(titleTextView)
+        contentLayout.addView(divider)
+        contentLayout.addView(scrollView)
 
-            // Post a runnable to check for scrollability after the layout is drawn
-            scrollView.post {
-                val canScroll = scrollView.getChildAt(0).height > scrollView.height
-                if (canScroll) {
-                    // Use a coroutine to add a small delay before starting the animation
-                    uiScope.launch {
-                        delay(500) // Wait half a second
-                        val scrollDistance = (50 * resources.displayMetrics.density).toInt() // 50dp
-                        ValueAnimator.ofInt(0, scrollDistance, 0).apply {
-                            duration = 1500
-                            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
-                            addUpdateListener { animation ->
-                                scrollView.scrollTo(0, animation.animatedValue as Int)
-                            }
-                            start()
-                        }
-                    }
-                }
-            }
-        }
-        dialog.setOnDismissListener {
+        // Close via Lottie CTA
+        val closeLottie = com.airbnb.lottie.LottieAnimationView(this)
+        val lottieParams = android.widget.LinearLayout.LayoutParams(dpToPx(80f), dpToPx(80f))
+        lottieParams.topMargin = dpToPx(12f)
+        closeLottie.layoutParams = lottieParams
+        closeLottie.setAnimation(R.raw.book)
+        closeLottie.repeatCount = com.airbnb.lottie.LottieDrawable.INFINITE
+        closeLottie.playAnimation()
+        closeLottie.alpha = 0.8f
+        
+        val closeLabel = TextView(this)
+        closeLabel.text = if (langCode == "bn") "বন্ধ করুন" else "Close"
+        closeLabel.textSize = 12f
+        closeLabel.setTextColor(android.graphics.Color.parseColor("#8D6E63"))
+        closeLabel.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        closeLabel.gravity = android.view.Gravity.CENTER
+
+        val dismissAction = {
             val aboutPrefs = getSharedPreferences(ABOUT_PREFS, Context.MODE_PRIVATE)
-            if (dontShowAgainCheckbox.visibility == View.VISIBLE) {
-                aboutPrefs.edit().putBoolean("show_about_on_startup", !dontShowAgainCheckbox.isChecked).apply()
+            if (dontShowAgainCheckbox.visibility == View.VISIBLE && dontShowAgainCheckbox.isChecked) {
+                aboutPrefs.edit().putBoolean("show_about_on_startup", false).apply()
             }
             bookViewModel.isFetchingAboutForDialog.value = false
+            aboutOverlay.animate().alpha(0f).setDuration(400).withEndAction {
+                rootView.removeView(aboutOverlay)
+            }.start()
         }
-        dialog.show()
+
+        closeLottie.setOnClickListener { dismissAction() }
+        
+        contentLayout.addView(closeLottie)
+        contentLayout.addView(closeLabel)
+
+        cardView.addView(contentLayout)
+        aboutOverlay.addView(cardView)
+        rootView.addView(aboutOverlay)
+        aboutOverlay.animate().alpha(1f).setDuration(600).start()
+
+        // Auto-scroll
+        scrollView.post {
+            val scrollRange = aboutContentTextView.height - scrollView.height
+            if (scrollRange > 0) {
+                val animator = ValueAnimator.ofInt(0, scrollRange)
+                animator.duration = (scrollRange * 35L)
+                animator.startDelay = 3000
+                animator.interpolator = android.view.animation.LinearInterpolator()
+                animator.addUpdateListener { animation ->
+                    scrollView.scrollTo(0, animation.animatedValue as Int)
+                }
+                scrollView.setOnTouchListener { _, _ ->
+                    if (animator.isRunning) animator.cancel()
+                    false
+                }
+                animator.start()
+            }
+        }
+    }
+
+    private fun dpToPx(dp: Float): Int {
+        return (dp * resources.displayMetrics.density).toInt()
     }
 
     private fun showNoResultsView(message: String, iconResId: Int = R.drawable.ic_search) {
