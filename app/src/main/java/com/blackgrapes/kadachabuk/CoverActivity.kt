@@ -349,12 +349,17 @@ class CoverActivity : AppCompatActivity() {
     
     private fun filterBooks(query: String) {
         val lang = currentBookshelfLanguage ?: "bn"
+        val phoneticQuery = PhoneticSearchUtils.transliterate(query)
+        
         val filteredList = if (query.isEmpty()) {
             fetchedBooks
         } else {
             fetchedBooks.filter { book ->
                 val name = book.getLocalizedName(lang)
+                val phoneticName = PhoneticSearchUtils.transliterate(name)
+                
                 name.contains(query, ignoreCase = true) || 
+                (phoneticQuery.isNotEmpty() && phoneticName.contains(phoneticQuery, ignoreCase = true)) ||
                 book.sl.contains(query, ignoreCase = true) 
             }
         }
